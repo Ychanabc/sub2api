@@ -5,20 +5,12 @@
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <!-- Left: Search + Filters -->
           <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-64">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('admin.channels.searchChannels', 'Search channels...')"
-                class="input pl-10"
-                @input="handleSearch"
-              />
-            </div>
+            <SearchInput
+              v-model="searchQuery"
+              :placeholder="t('admin.channels.searchChannels', 'Search channels...')"
+              class="w-full sm:w-64"
+              @search="handleSearch"
+            />
 
             <Select
               v-model="filters.status"
@@ -644,6 +636,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
+import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
@@ -1275,13 +1268,9 @@ async function loadAllChannelsForConflict() {
   }
 }
 
-let searchTimeout: ReturnType<typeof setTimeout>
 function handleSearch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.page = 1
-    loadChannels()
-  }, 300)
+  pagination.page = 1
+  loadChannels()
 }
 
 function handlePageChange(page: number) {
@@ -1602,7 +1591,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  clearTimeout(searchTimeout)
   abortController?.abort()
   document.removeEventListener('click', handleRuleAccountClickOutside)
   ruleAccountSearchRunner.clearAll()

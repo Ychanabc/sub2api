@@ -763,28 +763,6 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 	return tokenPair, user, nil
 }
 
-func (s *AuthService) ApplyOAuthSignupPromoCode(ctx context.Context, userID int64, promoCode string) {
-	if userID <= 0 {
-		return
-	}
-	s.applyOAuthSignupPromoCode(ctx, &User{ID: userID}, promoCode)
-}
-
-func (s *AuthService) applyOAuthSignupPromoCode(ctx context.Context, user *User, promoCode string) *User {
-	promoCode = strings.TrimSpace(promoCode)
-	if user == nil || user.ID <= 0 || promoCode == "" || s.promoService == nil || s.settingService == nil || !s.settingService.IsPromoCodeEnabled(ctx) {
-		return user
-	}
-	if err := s.promoService.ApplyPromoCode(ctx, user.ID, promoCode); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to apply promo code for oauth user %d: %v", user.ID, err)
-		return user
-	}
-	if updatedUser, err := s.userRepo.GetByID(ctx, user.ID); err == nil {
-		return updatedUser
-	}
-	return user
-}
-
 func (s *AuthService) assignSubscriptions(ctx context.Context, userID int64, items []DefaultSubscriptionSetting, notes string) {
 	if s.settingService == nil || s.defaultSubAssigner == nil || userID <= 0 {
 		return

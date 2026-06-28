@@ -1,11 +1,11 @@
 <template>
   <div class="card">
-    <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
+    <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700 sm:px-5">
+      <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
     </div>
     <div class="space-y-3 p-4">
-      <button @click="router.push('/keys')" class="group flex w-full items-center gap-4 rounded-xl bg-gray-50 p-4 text-left transition-all duration-200 hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 transition-transform group-hover:scale-105 dark:bg-primary-900/30">
+      <button @click="router.push('/keys')" class="group flex w-full items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-left transition-all duration-200 hover:bg-gray-100 dark:border-dark-700 dark:bg-dark-800/50 dark:hover:bg-dark-800">
+        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-primary-100 bg-primary-50 transition-transform group-hover:scale-105 dark:border-primary-900/60 dark:bg-primary-950/40">
           <Icon name="key" size="lg" class="text-primary-600 dark:text-primary-400" />
         </div>
         <div class="min-w-0 flex-1">
@@ -19,8 +19,8 @@
         />
       </button>
 
-      <button @click="router.push('/usage')" class="group flex w-full items-center gap-4 rounded-xl bg-gray-50 p-4 text-left transition-all duration-200 hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 transition-transform group-hover:scale-105 dark:bg-emerald-900/30">
+      <button @click="router.push('/usage')" class="group flex w-full items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-left transition-all duration-200 hover:bg-gray-100 dark:border-dark-700 dark:bg-dark-800/50 dark:hover:bg-dark-800">
+        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 transition-transform group-hover:scale-105 dark:border-emerald-900/60 dark:bg-emerald-950/40">
           <Icon name="chart" size="lg" class="text-emerald-600 dark:text-emerald-400" />
         </div>
         <div class="min-w-0 flex-1">
@@ -34,8 +34,8 @@
         />
       </button>
 
-      <button @click="router.push('/redeem')" class="group flex w-full items-center gap-4 rounded-xl bg-gray-50 p-4 text-left transition-all duration-200 hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 transition-transform group-hover:scale-105 dark:bg-amber-900/30">
+      <button @click="router.push('/redeem')" class="group flex w-full items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-left transition-all duration-200 hover:bg-gray-100 dark:border-dark-700 dark:bg-dark-800/50 dark:hover:bg-dark-800">
+        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-amber-100 bg-amber-50 transition-transform group-hover:scale-105 dark:border-amber-900/60 dark:bg-amber-950/40">
           <Icon name="gift" size="lg" class="text-amber-600 dark:text-amber-400" />
         </div>
         <div class="min-w-0 flex-1">

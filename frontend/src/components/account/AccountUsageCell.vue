@@ -591,7 +591,7 @@ import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
-import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
+import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue' 
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()

@@ -358,6 +358,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				RequestExcerpt:     string(body),
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
 			}); err != nil {

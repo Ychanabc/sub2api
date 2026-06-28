@@ -279,6 +279,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				RequestExcerpt:     string(body),
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {

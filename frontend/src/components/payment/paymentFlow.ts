@@ -14,11 +14,12 @@ const VISIBLE_METHOD_ALIASES = {
   alipay_direct: 'alipay',
   wxpay: 'wxpay',
   wxpay_direct: 'wxpay',
+  usdt: 'usdt',
   stripe: 'stripe',
   airwallex: 'airwallex',
 } as const
 
-export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
+export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'usdt' | 'stripe' | 'airwallex'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
   | 'qr_waiting'
@@ -204,8 +205,11 @@ export function decidePaymentLaunch(
   const effectiveMobile = (context.forceQRCode && visibleMethod === 'alipay')
     ? false
     : context.isMobile
+  // USDT (BEPUSDT) always opens the hosted cashier page in a popup/new window
+  // instead of rendering an inline QR code.
   const prefersRedirect = normalizedPaymentMode === 'redirect'
     || normalizedPaymentMode === 'popup'
+    || (visibleMethod === 'usdt' && !!baseState.payUrl)
     || (effectiveMobile && !!baseState.payUrl)
   const prefersQr = normalizedPaymentMode === 'qrcode'
     || normalizedPaymentMode === 'native'

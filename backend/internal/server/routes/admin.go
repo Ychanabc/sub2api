@@ -104,6 +104,9 @@ func RegisterAdminRoutes(
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
+		// 对话审计
+		registerConversationAuditRoutes(admin, h)
+
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 	}
@@ -128,6 +131,17 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		risk.POST("/users/:user_id/unban", h.Admin.ContentModeration.UnbanUser)
 		risk.DELETE("/hashes", h.Admin.ContentModeration.DeleteFlaggedHash)
 		risk.DELETE("/hashes/all", h.Admin.ContentModeration.ClearFlaggedHashes)
+	}
+}
+
+func registerConversationAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	audit := admin.Group("/conversation-audits")
+	{
+		audit.GET("/status", h.Admin.ConversationAudit.Status)
+		audit.POST("/unlock", h.Admin.ConversationAudit.Unlock)
+		audit.GET("/access-logs", h.Admin.ConversationAudit.AccessLogs)
+		audit.GET("", h.Admin.ConversationAudit.List)
+		audit.DELETE("", h.Admin.ConversationAudit.ClearAll)
 	}
 }
 

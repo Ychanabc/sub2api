@@ -32,20 +32,20 @@
       </template>
 
       <template #actions>
-        <div class="flex justify-end gap-3">
-        <button
-          @click="loadApiKeys"
-          :disabled="loading"
-          class="btn btn-secondary"
-          :title="t('common.refresh')"
-        >
-          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-        </button>
-        <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
-          <Icon name="plus" size="md" class="mr-2" />
-          {{ t('keys.createKey') }}
-        </button>
-      </div>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <button
+            @click="loadApiKeys"
+            :disabled="loading"
+            class="btn btn-secondary"
+            :title="t('common.refresh')"
+          >
+            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+          </button>
+          <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+            <Icon name="plus" size="md" class="mr-2" />
+            {{ t('keys.createKey') }}
+          </button>
+        </div>
       </template>
 
       <template #table>
@@ -117,19 +117,12 @@
                   t('keys.noGroup')
                 }}</span>
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
-                  />
-                </svg>
+                <Icon
+                  name="arrowsUpDown"
+                  size="xs"
+                  class="text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
+                  :stroke-width="2"
+                />
               </button>
             </div>
           </template>

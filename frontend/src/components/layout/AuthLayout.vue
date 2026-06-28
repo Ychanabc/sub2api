@@ -1,63 +1,86 @@
 <template>
-  <div class="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
-    <!-- Background -->
-    <div
-      class="absolute inset-0 bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
-    ></div>
-
-    <!-- Decorative Elements -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <!-- Gradient Orbs -->
-      <div
-        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/20 blur-3xl"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"
-      ></div>
-      <div
-        class="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-300/10 blur-3xl"
-      ></div>
-
-      <!-- Grid Pattern -->
-      <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
-      ></div>
-    </div>
-
-    <!-- Content Container -->
-    <div class="relative z-10 w-full max-w-md">
-      <!-- Logo/Brand -->
-      <div class="mb-8 text-center">
-        <!-- Custom Logo or Default Logo -->
-        <template v-if="settingsLoaded">
-          <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
-          >
+  <div class="min-h-screen text-gray-900 dark:text-gray-100">
+    <div class="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_480px]">
+      <section
+        class="hidden border-r px-10 py-8 dark:border-dark-800 lg:flex lg:flex-col"
+      >
+        <div v-if="settingsLoaded" class="flex items-center gap-3">
+          <div class="auth-logo-box">
             <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
           </div>
-          <h1 class="text-gradient mb-2 text-3xl font-bold">
-            {{ siteName }}
-          </h1>
-          <p class="text-sm text-gray-500 dark:text-dark-400">
-            {{ siteSubtitle }}
-          </p>
-        </template>
-      </div>
+          <div class="min-w-0">
+            <h1 class="truncate text-base font-semibold text-gray-900 dark:text-white">
+              {{ siteName }}
+            </h1>
+            <p class="truncate text-xs text-gray-500 dark:text-dark-400">
+              {{ siteSubtitle }}
+            </p>
+          </div>
+        </div>
 
-      <!-- Card Container -->
-      <div class="card-glass rounded-2xl p-8 shadow-glass">
-        <slot />
-      </div>
+        <div class="flex flex-1 items-center">
+          <div class="max-w-xl">
+            <p class="mb-3 text-sm font-medium text-primary-600 dark:text-primary-300">
+              Sub2API Console
+            </p>
+            <h2 class="text-4xl font-semibold leading-tight text-gray-950 dark:text-white">
+              {{ siteName }}
+            </h2>
+            <p class="mt-4 max-w-md text-sm leading-6 text-gray-500 dark:text-dark-300">
+              {{ siteSubtitle }}
+            </p>
 
-      <!-- Footer Links -->
-      <div class="mt-6 text-center text-sm">
-        <slot name="footer" />
-      </div>
+            <div class="mt-10 grid max-w-md gap-3" aria-hidden="true">
+              <div class="auth-preview-card">
+                <div class="h-2 w-20 rounded bg-primary-200 dark:bg-primary-900/70"></div>
+                <div class="mt-4 grid gap-2">
+                  <div class="h-2 rounded bg-gray-200 dark:bg-dark-700"></div>
+                  <div class="h-2 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+                </div>
+              </div>
+              <div class="auth-preview-card">
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="h-14 rounded-2xl bg-white/80 dark:bg-white/10"></div>
+                  <div class="h-14 rounded-2xl bg-white/80 dark:bg-white/10"></div>
+                  <div class="h-14 rounded-2xl bg-white/80 dark:bg-white/10"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <!-- Copyright -->
-      <div class="mt-8 text-center text-xs text-gray-400 dark:text-dark-500">
-        &copy; {{ currentYear }} {{ siteName }}. All rights reserved.
-      </div>
+        <div class="text-xs text-gray-400 dark:text-dark-500">
+          &copy; {{ currentYear }} {{ siteName }}. All rights reserved.
+        </div>
+      </section>
+
+      <section class="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+        <div class="w-full max-w-md">
+          <div v-if="settingsLoaded" class="mb-6 text-center lg:hidden">
+            <div class="auth-logo-box mb-3 inline-flex h-12 w-12">
+              <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
+            </div>
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              {{ siteName }}
+            </h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
+              {{ siteSubtitle }}
+            </p>
+          </div>
+
+          <div class="auth-panel p-6 sm:p-8">
+            <slot />
+          </div>
+
+          <div class="mt-6 text-center text-sm">
+            <slot name="footer" />
+          </div>
+
+          <div class="mt-8 text-center text-xs text-gray-400 dark:text-dark-500 lg:hidden">
+            &copy; {{ currentYear }} {{ siteName }}. All rights reserved.
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -82,7 +105,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.text-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent;
+section {
+  border-color: var(--ios-border);
+}
+
+.auth-logo-box {
+  @apply flex items-center justify-center overflow-hidden border;
+  background: var(--ios-surface);
+  border-color: var(--ios-border);
+  border-radius: 16px;
+  box-shadow: var(--ios-shadow-soft);
+}
+
+.auth-preview-card,
+.auth-panel {
+  @apply border;
+  background: var(--ios-surface);
+  border-color: var(--ios-border);
+  border-radius: var(--ios-radius);
+  box-shadow: var(--ios-shadow-soft);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
 }
 </style>

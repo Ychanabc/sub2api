@@ -1,8 +1,20 @@
 <template>
   <BaseDialog :show="show" :title="title" width="narrow" @close="handleCancel">
-    <div class="space-y-4">
-      <p class="text-sm text-gray-600 dark:text-gray-400">{{ message }}</p>
-      <slot></slot>
+    <div class="flex gap-4">
+      <div
+        :class="[
+          'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
+          danger
+            ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300'
+            : 'bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
+        ]"
+      >
+        <Icon :name="danger ? 'exclamationTriangle' : 'infoCircle'" size="md" />
+      </div>
+      <div class="min-w-0 space-y-3">
+        <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ message }}</p>
+        <slot></slot>
+      </div>
     </div>
 
     <template #footer>
@@ -10,7 +22,7 @@
         <button
           @click="handleCancel"
           type="button"
-          class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200 dark:hover:bg-dark-600 dark:focus:ring-offset-dark-800"
+          class="btn btn-secondary btn-md"
         >
           {{ cancelText }}
         </button>
@@ -18,10 +30,8 @@
           @click="handleConfirm"
           type="button"
           :class="[
-            'rounded-md px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-800',
-            danger
-              ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-              : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary-500'
+            'btn btn-md',
+            danger ? 'btn-danger' : 'btn-primary'
           ]"
         >
           {{ confirmText }}
@@ -35,6 +45,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from './BaseDialog.vue'
+import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 

@@ -14,13 +14,15 @@
         <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
           <!-- Header -->
           <div class="modal-header">
-            <h3 :id="dialogId" class="modal-title">
-              {{ title }}
-            </h3>
+            <div class="min-w-0">
+              <h3 :id="dialogId" class="modal-title">
+                {{ title }}
+              </h3>
+            </div>
             <button
               v-if="showCloseButton"
               @click="emit('close')"
-              class="-mr-2 rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300"
+              class="modal-close-button"
               aria-label="Close modal"
             >
               <Icon name="x" size="md" />
@@ -92,9 +94,9 @@ const widthClasses = computed(() => {
   const widths: Record<DialogWidth, string> = {
     narrow: 'max-w-md',
     normal: 'max-w-lg',
-    wide: 'w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl',
-    'extra-wide': 'w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl',
-    full: 'w-full sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl'
+    wide: 'max-w-4xl',
+    'extra-wide': 'max-w-6xl',
+    full: 'max-w-7xl'
   }
   return widths[props.width]
 })

@@ -67,6 +67,12 @@ func (h *PaymentWebhookHandler) AirwallexWebhook(c *gin.Context) {
 	h.handleNotify(c, payment.TypeAirwallex)
 }
 
+// USDTWebhook handles BEpusdt webhook events.
+// POST /api/v1/payment/webhook/usdt
+func (h *PaymentWebhookHandler) USDTWebhook(c *gin.Context) {
+	h.handleNotify(c, payment.TypeUSDT)
+}
+
 // handleNotify is the shared logic for all provider webhook handlers.
 func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string) {
 	var rawBody string
@@ -151,7 +157,16 @@ func extractOutTradeNo(rawBody, providerKey string) string {
 	case payment.TypeEasyPay, payment.TypeAlipay:
 		values, err := url.ParseQuery(rawBody)
 		if err == nil {
-			return values.Get("out_trade_no")
+			if outTradeNo := strings.TrimSpace(values.Get("out_trade_no")); outTradeNo != "" {
+				return outTradeNo
+			}
+		}
+	case payment.TypeUSDT:
+		var payload struct {
+			OrderID string `json:"order_id"`
+		}
+		if err := json.Unmarshal([]byte(rawBody), &payload); err == nil {
+			return strings.TrimSpace(payload.OrderID)
 		}
 	case payment.TypeAirwallex:
 		var payload struct {

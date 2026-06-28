@@ -456,8 +456,8 @@ onUnmounted(() => {
 <style scoped>
 .select-trigger {
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-xl px-4 py-2.5 text-sm;
-  @apply bg-white dark:bg-dark-800;
+  @apply rounded-lg px-3 py-2 text-sm;
+  @apply bg-white dark:bg-dark-900;
   @apply border border-gray-200 dark:border-dark-600;
   @apply text-gray-900 dark:text-gray-100;
   @apply transition-all duration-200;
@@ -496,16 +496,16 @@ onUnmounted(() => {
 <style>
 .select-dropdown-portal {
   @apply w-max min-w-[200px];
-  @apply bg-white dark:bg-dark-800;
-  @apply rounded-xl;
+  @apply bg-white dark:bg-dark-900;
+  @apply rounded-lg;
   @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply shadow-lg shadow-gray-200/80 dark:shadow-black/30;
   @apply overflow-hidden;
   pointer-events: auto !important;
 }
 
 .select-dropdown-portal .select-search {
-  @apply flex items-center gap-2 px-3 py-2;
+  @apply flex items-center gap-2 bg-gray-50 px-3 py-2 dark:bg-dark-950;
   @apply border-b border-gray-100 dark:border-dark-700;
 }
 
@@ -522,10 +522,10 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option {
   @apply flex items-center justify-between gap-2;
-  @apply px-4 py-2.5 text-sm;
+  @apply mx-1 rounded-md px-3 py-2 text-sm;
   @apply text-gray-700 dark:text-gray-300;
   @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  @apply hover:bg-gray-100 dark:hover:bg-dark-800;
   pointer-events: auto !important;
 }
 
@@ -544,8 +544,8 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option-group {
   @apply cursor-default select-none;
-  @apply bg-gray-50 dark:bg-dark-900;
-  @apply text-[11px] font-bold uppercase tracking-wider;
+  @apply bg-transparent dark:bg-transparent;
+  @apply text-[11px] font-semibold uppercase;
   @apply text-gray-500 dark:text-gray-400;
 }
 

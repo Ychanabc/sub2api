@@ -1,15 +1,13 @@
 <template>
-  <div class="flex items-center gap-1.5">
+  <span :class="['status-tag', variantClass]">
     <span
       :class="[
-        'inline-block h-2 w-2 rounded-full',
-        variantClass
+        'inline-block h-1.5 w-1.5 rounded-full',
+        dotClass
       ]"
     ></span>
-    <span class="text-sm text-gray-700 dark:text-gray-300">
-      {{ label }}
-    </span>
-  </div>
+    <span>{{ label }}</span>
+  </span>
 </template>
 
 <script setup lang="ts">
@@ -24,11 +22,28 @@ const variantClass = computed(() => {
   switch (props.status) {
     case 'active':
     case 'success':
-      return 'bg-green-500'
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
     case 'disabled':
     case 'inactive':
     case 'warning':
-      return 'bg-yellow-500'
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+    case 'error':
+    case 'danger':
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+    default:
+      return 'border-gray-200 bg-gray-50 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-300'
+  }
+})
+
+const dotClass = computed(() => {
+  switch (props.status) {
+    case 'active':
+    case 'success':
+      return 'bg-emerald-500'
+    case 'disabled':
+    case 'inactive':
+    case 'warning':
+      return 'bg-amber-500'
     case 'error':
     case 'danger':
       return 'bg-red-500'
@@ -37,3 +52,9 @@ const variantClass = computed(() => {
   }
 })
 </script>
+
+<style scoped>
+.status-tag {
+  @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium;
+}
+</style>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin Settings API endpoints
  * Handles system settings management for administrators
  */
@@ -16,23 +16,23 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
-// ── 平台限额类型 ──────────────────────────────────────────────────
+// Platform quota types
 export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok"
 export type QuotaWindowType = "daily" | "weekly" | "monthly"
 
-/** 单平台三档限额；null = 不限制，undefined = 未填（等价 null） */
+/** 鍗曞钩鍙颁笁妗ｉ檺棰濓紱null = 涓嶉檺鍒讹紝undefined = 鏈～锛堢瓑浠?null锛?*/
 export interface PlatformQuotaLimits {
   daily:   number | null
   weekly:  number | null
   monthly: number | null
 }
 
-/** 全平台默认限额 map（key = PlatformType） */
+/** 鍏ㄥ钩鍙伴粯璁ら檺棰?map锛坘ey = PlatformType锛?*/
 export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuotaLimits>>
 
 const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "grok"]
 
-/** 归一化为全 4 平台 × 3 窗口（缺失填 null），供模板非空绑定 */
+/** 褰掍竴鍖栦负鍏?4 骞冲彴 脳 3 绐楀彛锛堢己澶卞～ null锛夛紝渚涙ā鏉块潪绌虹粦瀹?*/
 export function normalizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | null): DefaultPlatformQuotasMap {
   const result: DefaultPlatformQuotasMap = {}
   for (const p of PLATFORMS) {
@@ -46,7 +46,7 @@ export function normalizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | nu
   return result
 }
 
-/** 提交前清洗：非有限数/负数/空字符串 → null（保留 0 = 显式禁用），返回全 4 平台嵌套 map */
+/** 鎻愪氦鍓嶆竻娲楋細闈炴湁闄愭暟/璐熸暟/绌哄瓧绗︿覆 鈫?null锛堜繚鐣?0 = 鏄惧紡绂佺敤锛夛紝杩斿洖鍏?4 骞冲彴宓屽 map */
 export function sanitizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | null): DefaultPlatformQuotasMap {
   const clean = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null)
   const result: DefaultPlatformQuotasMap = {}
@@ -72,7 +72,6 @@ export interface AuthSourceDefaultsValue {
   subscriptions: DefaultSubscriptionSetting[];
   grant_on_signup: boolean;
   grant_on_first_bind: boolean;
-  // ★ 新增：平台限额覆盖（key = PlatformType）
   platform_quotas: DefaultPlatformQuotasMap;
 }
 
@@ -125,7 +124,7 @@ const PAYMENT_VISIBLE_METHOD_SOURCE_OPTIONS: Record<
     },
     {
       value: "easypay_alipay",
-      labelZh: "易支付支付宝",
+      labelZh: "鏄撴敮浠樻敮浠樺疂",
       labelEn: "EasyPay Alipay",
     },
   ],
@@ -133,7 +132,7 @@ const PAYMENT_VISIBLE_METHOD_SOURCE_OPTIONS: Record<
     { value: "", labelZh: "未配置", labelEn: "Not configured" },
     {
       value: "official_wxpay",
-      labelZh: "微信官方",
+      labelZh: "寰俊瀹樻柟",
       labelEn: "Official WeChat Pay",
     },
     {
@@ -166,7 +165,7 @@ const PAYMENT_VISIBLE_METHOD_SOURCE_ALIASES: Record<
   },
 };
 const WECHAT_CONNECT_MODE_OPTIONS: WeChatConnectModeOption[] = [
-  { value: "open", labelZh: "PC 应用", labelEn: "PC App" },
+  { value: "open", labelZh: "PC 搴旂敤", labelEn: "PC App" },
   {
     value: "mp",
     labelZh: "公众号",
@@ -174,7 +173,7 @@ const WECHAT_CONNECT_MODE_OPTIONS: WeChatConnectModeOption[] = [
   },
   {
     value: "mobile",
-    labelZh: "移动应用",
+    labelZh: "绉诲姩搴旂敤",
     labelEn: "Mobile App",
   },
 ];
@@ -364,9 +363,12 @@ export interface SystemSettings {
   password_reset_enabled: boolean;
   frontend_url: string;
   invitation_code_enabled: boolean;
-  totp_enabled: boolean; // TOTP 双因素认证
-  totp_encryption_key_configured: boolean; // TOTP 加密密钥是否已配置
+  totp_encryption_key_configured: boolean;
   login_agreement_enabled: boolean;
+  conversation_audit_secondary_password_configured: boolean;
+  conversation_audit_cleanup_enabled: boolean;
+  conversation_audit_retention_days: number;
+  totp_enabled: boolean;
   login_agreement_mode: "modal" | "checkbox" | string;
   login_agreement_updated_at: string;
   login_agreement_documents: LoginAgreementDocument[];
@@ -415,7 +417,7 @@ export interface SystemSettings {
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
   force_email_on_third_party_signup?: boolean;
-  // ── 平台限额（嵌套 JSON，系统层 + 7 auth-source 层）────────────────────────────────
+  // 鈹€鈹€ 骞冲彴闄愰锛堝祵濂?JSON锛岀郴缁熷眰 + 7 auth-source 灞傦級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   default_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
@@ -549,7 +551,7 @@ export interface SystemSettings {
   min_claude_code_version: string;
   max_claude_code_version: string;
 
-  // 分组隔离
+  // 鍒嗙粍闅旂
   allow_ungrouped_key_scheduling: boolean;
 
   // Gateway forwarding behavior
@@ -606,7 +608,7 @@ export interface SystemSettings {
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
 
-  // 余额、订阅到期与账号限额通知
+  // 浣欓銆佽闃呭埌鏈熶笌璐﹀彿闄愰閫氱煡
   balance_low_notify_enabled: boolean;
   balance_low_notify_threshold: number;
   balance_low_notify_recharge_url: string;
@@ -621,7 +623,7 @@ export interface SystemSettings {
   // Available Channels feature switch
   available_channels_enabled: boolean;
 
-  // Affiliate (邀请返利) feature switch
+  // Affiliate (閭€璇疯繑鍒? feature switch
   affiliate_enabled: boolean;
 
   // OpenAI fast/flex policy
@@ -639,8 +641,11 @@ export interface UpdateSettingsRequest {
   password_reset_enabled?: boolean;
   frontend_url?: string;
   invitation_code_enabled?: boolean;
-  totp_enabled?: boolean; // TOTP 双因素认证
   login_agreement_enabled?: boolean;
+  conversation_audit_secondary_password?: string;
+  conversation_audit_cleanup_enabled?: boolean;
+  conversation_audit_retention_days?: number;
+  totp_enabled?: boolean;
   login_agreement_mode?: "modal" | "checkbox" | string;
   login_agreement_updated_at?: string;
   login_agreement_documents?: LoginAgreementDocument[];
@@ -688,7 +693,7 @@ export interface UpdateSettingsRequest {
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
   force_email_on_third_party_signup?: boolean;
-  // ── 平台限额（嵌套 JSON，系统层 + 7 auth-source 层）────────────────────────────────
+  // 鈹€鈹€ 骞冲彴闄愰锛堝祵濂?JSON锛岀郴缁熷眰 + 7 auth-source 灞傦級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   default_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
@@ -853,7 +858,7 @@ export interface UpdateSettingsRequest {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
-  // 余额、订阅到期与账号限额通知
+  // 浣欓銆佽闃呭埌鏈熶笌璐﹀彿闄愰閫氱煡
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
   balance_low_notify_recharge_url?: string;
@@ -868,7 +873,7 @@ export interface UpdateSettingsRequest {
   // Available Channels feature switch
   available_channels_enabled?: boolean;
 
-  // Affiliate (邀请返利) feature switch
+  // Affiliate (閭€璇疯繑鍒? feature switch
   affiliate_enabled?: boolean;
 
   // OpenAI fast/flex policy

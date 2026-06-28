@@ -502,6 +502,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/conversation-audits',
+    name: 'AdminConversationAudits',
+    component: () => import('@/views/admin/ConversationAuditView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Conversation Audit',
+      titleKey: 'admin.conversationAudit.title',
+      descriptionKey: 'admin.conversationAudit.description'
+    }
+  },
+  {
     path: '/admin/proxies',
     name: 'AdminProxies',
     component: () => import('@/views/admin/ProxiesView.vue'),

@@ -306,6 +306,13 @@ const (
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）
 
+	// 对话审计安全（二级密码 + TOTP 二步验证 + 定时清理）
+	SettingKeyAuditSecondaryPasswordHash = "audit_secondary_password_hash" // 二级密码 bcrypt 哈希
+	SettingKeyAuditTOTPSecret            = "audit_totp_secret"             // TOTP 密钥（base32）
+	SettingKeyAuditTOTPEnabled           = "audit_totp_enabled"           // TOTP 是否启用 ("true"/"false")
+	SettingKeyAuditCleanupEnabled        = "audit_cleanup_enabled"        // 定时清理是否启用
+	SettingKeyAuditRetentionDays         = "audit_retention_days"         // 保留天数（整数字符串）
+
 	// Gemini 配额策略（JSON）
 	SettingKeyGeminiQuotaPolicy = "gemini_quota_policy"
 

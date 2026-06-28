@@ -32,6 +32,7 @@ export interface CallbackPaths {
 /** Maps provider key → available payment types. */
 export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   easypay: ['alipay', 'wxpay'],
+  usdt: ['usdt'],
   alipay: ['alipay'],
   wxpay: ['wxpay'],
   stripe: ['card', 'alipay', 'wxpay', 'link'],
@@ -42,7 +43,7 @@ export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
 export const EASYPAY_PAYMENT_MODES = ['qrcode', 'popup'] as const
 
 /** Fixed display order for user-facing payment methods */
-export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'stripe', 'airwallex'] as const
+export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'usdt', 'stripe', 'airwallex'] as const
 
 /** Payment mode constants */
 export const PAYMENT_MODE_QRCODE = 'qrcode'
@@ -92,6 +93,7 @@ export function getPaymentPopupFeatures(): string {
 /** Webhook paths for each provider (relative to origin). */
 export const WEBHOOK_PATHS: Record<string, string> = {
   easypay: '/api/v1/payment/webhook/easypay',
+  usdt: '/api/v1/payment/webhook/usdt',
   alipay: '/api/v1/payment/webhook/alipay',
   wxpay: '/api/v1/payment/webhook/wxpay',
   stripe: '/api/v1/payment/webhook/stripe',
@@ -103,6 +105,7 @@ export const RETURN_PATH = '/payment/result'
 /** Fixed callback paths per provider — displayed as read-only after base URL. */
 export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
   easypay: { notifyUrl: WEBHOOK_PATHS.easypay, returnUrl: RETURN_PATH },
+  usdt: { notifyUrl: WEBHOOK_PATHS.usdt, returnUrl: RETURN_PATH },
   alipay: { notifyUrl: WEBHOOK_PATHS.alipay, returnUrl: RETURN_PATH },
   wxpay: { notifyUrl: WEBHOOK_PATHS.wxpay },
   // stripe: 不需要回调 URL 配置，Webhook 单独配置。
@@ -117,6 +120,17 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'apiBase', label: '', sensitive: false },
     { key: 'cidAlipay', label: '', sensitive: false, optional: true },
     { key: 'cidWxpay', label: '', sensitive: false, optional: true },
+  ],
+  usdt: [
+    { key: 'apiBase', label: '', sensitive: false },
+    { key: 'apiToken', label: '', sensitive: true },
+    { key: 'tradeType', label: '', sensitive: false, optional: true, defaultValue: 'usdt.trc20' },
+    { key: 'fiat', label: '', sensitive: false, optional: true, defaultValue: 'CNY', options: PAYMENT_CURRENCY_OPTIONS },
+    { key: 'address', label: '', sensitive: false, optional: true },
+    { key: 'timeout', label: '', sensitive: false, optional: true, defaultValue: '600' },
+    { key: 'rate', label: '', sensitive: false, optional: true },
+    { key: 'createPath', label: '', sensitive: false, optional: true, defaultValue: '/api/v1/order/create-transaction' },
+    { key: 'queryPath', label: '', sensitive: false, optional: true, defaultValue: '/api/v1/order/order-status' },
   ],
   alipay: [
     { key: 'appId', label: 'App ID', sensitive: false },
