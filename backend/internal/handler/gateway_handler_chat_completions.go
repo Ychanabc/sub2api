@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -83,7 +85,18 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
 	setOpsRequestContext(c, reqModel, reqStream)
-	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
+	requestType := int16(service.RequestTypeFromLegacy(reqStream, false))
+	setOpsEndpointContext(c, "", requestType)
+	h.gatewayService.RecordConversationAuditStart(c.Request.Context(), &service.ConversationAuditStartInput{
+		RequestID:          gatewayRequestID(c),
+		APIKey:             apiKey,
+		User:               apiKey.User,
+		Model:              reqModel,
+		InboundEndpoint:    GetInboundEndpoint(c),
+		RequestType:        requestType,
+		RequestPayloadHash: service.HashUsageRequestPayload(body),
+		RequestExcerpt:     string(body),
+	})
 
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
@@ -316,6 +329,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				RequestExcerpt:     string(body),
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {
@@ -327,6 +341,22 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		})
 		return
 	}
+}
+
+func gatewayRequestID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if requestID, ok := c.Request.Context().Value(ctxkey.RequestID).(string); ok && strings.TrimSpace(requestID) != "" {
+		return strings.TrimSpace(requestID)
+	}
+	if requestID := strings.TrimSpace(c.Writer.Header().Get("X-Request-ID")); requestID != "" {
+		return requestID
+	}
+	if requestID := strings.TrimSpace(c.Writer.Header().Get("X-Request-Id")); requestID != "" {
+		return requestID
+	}
+	return strings.TrimSpace(c.Writer.Header().Get("x-request-id"))
 }
 
 // chatCompletionsErrorResponse writes an error in OpenAI Chat Completions format.

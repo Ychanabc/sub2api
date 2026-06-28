@@ -4,15 +4,12 @@
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
-          <div class="flex-1 sm:max-w-64">
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="t('admin.announcements.searchAnnouncements')"
-              class="input"
-              @input="handleSearch"
-            />
-          </div>
+          <SearchInput
+            v-model="searchQuery"
+            :placeholder="t('admin.announcements.searchAnnouncements')"
+            class="flex-1 sm:max-w-64"
+            @search="handleSearch"
+          />
           <Select
             v-model="filters.status"
             :options="statusFilterOptions"
@@ -260,6 +257,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import SearchInput from '@/components/common/SearchInput.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -397,13 +395,9 @@ function handleSort(key: string, order: 'asc' | 'desc') {
   loadAnnouncements()
 }
 
-let searchDebounceTimer: number | null = null
 function handleSearch() {
-  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
-  searchDebounceTimer = window.setTimeout(() => {
-    pagination.page = 1
-    loadAnnouncements()
-  }, 300)
+  pagination.page = 1
+  loadAnnouncements()
 }
 
 // ===== Create/Edit dialog =====
@@ -600,7 +594,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
   currentController?.abort()
 })
 </script>

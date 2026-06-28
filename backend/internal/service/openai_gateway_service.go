@@ -252,6 +252,9 @@ type OpenAIForwardResult struct {
 	ImageSizeSource    string
 	ImageSizeBreakdown map[string]int
 
+	// ResponseText is a best-effort assistant output text excerpt for audit.
+	ResponseText string
+
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
 }
@@ -333,6 +336,7 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
 	usageLogRepo          UsageLogRepository
+	conversationAuditRepo ConversationAuditRepository
 	usageBillingRepo      UsageBillingRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
@@ -400,6 +404,7 @@ func NewOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	conversationAuditRepos ...ConversationAuditRepository,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
 		accountRepo:         accountRepo,
@@ -435,6 +440,9 @@ func NewOpenAIGatewayService(
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 	}
+	if len(conversationAuditRepos) > 0 {
+		svc.conversationAuditRepo = conversationAuditRepos[0]
+	}
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
 	}
@@ -443,6 +451,13 @@ func NewOpenAIGatewayService(
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
+}
+
+func (s *OpenAIGatewayService) RecordConversationAuditStart(ctx context.Context, input *ConversationAuditStartInput) {
+	if s == nil || s.conversationAuditRepo == nil || input == nil {
+		return
+	}
+	writeConversationAuditStart(ctx, s.conversationAuditRepo, input, "openai")
 }
 
 // ResolveChannelMapping 解析渠道级模型映射（代理到 ChannelService）
@@ -3057,6 +3072,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		responseID := ""
 		imageCount := 0
 		var imageOutputSizes []string
+		var responseText string
 		if reqStream {
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
 			if err != nil {
@@ -3067,6 +3083,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			responseID = strings.TrimSpace(streamResult.responseID)
 			imageCount = streamResult.imageCount
 			imageOutputSizes = streamResult.imageOutputSizes
+			responseText = streamResult.responseText
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
@@ -3076,6 +3093,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			responseID = strings.TrimSpace(nonStreamResult.responseID)
 			imageCount = nonStreamResult.imageCount
 			imageOutputSizes = nonStreamResult.imageOutputSizes
+			responseText = nonStreamResult.responseText
 		}
 		s.bindHTTPResponseAccount(ctx, c, account, responseID)
 
@@ -3102,6 +3120,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			OpenAIWSMode:    false,
 			Duration:        time.Since(startTime),
 			FirstTokenMs:    firstTokenMs,
+			ResponseText:    responseText,
 		}
 		if imageCount > 0 {
 			forwardResult.ImageCount = imageCount
@@ -3294,6 +3313,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	responseID := ""
 	imageCount := 0
 	var imageOutputSizes []string
+	var responseText string
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
 		if err != nil {
@@ -3304,6 +3324,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		responseID = strings.TrimSpace(result.responseID)
 		imageCount = result.imageCount
 		imageOutputSizes = result.imageOutputSizes
+		responseText = result.responseText
 	} else {
 		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
 		if err != nil {
@@ -3313,6 +3334,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		responseID = strings.TrimSpace(result.responseID)
 		imageCount = result.imageCount
 		imageOutputSizes = result.imageOutputSizes
+		responseText = result.responseText
 	}
 	s.bindHTTPResponseAccount(ctx, c, account, responseID)
 
@@ -3336,6 +3358,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		OpenAIWSMode:    false,
 		Duration:        time.Since(startTime),
 		FirstTokenMs:    firstTokenMs,
+		ResponseText:    responseText,
 	}
 	if imageCount > 0 {
 		forwardResult.ImageCount = imageCount
@@ -3645,6 +3668,7 @@ type openaiStreamingResultPassthrough struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
+	responseText     string
 }
 
 type openaiNonStreamingResultPassthrough struct {
@@ -3653,6 +3677,7 @@ type openaiNonStreamingResultPassthrough struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
+	responseText     string
 }
 
 func openAIStreamClientOutputStarted(c *gin.Context, localStarted bool) bool {
@@ -3825,6 +3850,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	defer putSSEScannerBuf64K(scanBuf)
 
 	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
+	var responseTextBuilder strings.Builder
 	resultWithUsage := func() *openaiStreamingResultPassthrough {
 		return &openaiStreamingResultPassthrough{
 			usage:            usage,
@@ -3832,6 +3858,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			responseID:       responseID,
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
+			responseText:     responseTextBuilder.String(),
 		}
 	}
 
@@ -3867,6 +3894,11 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			}
 			if responseID == "" {
 				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
+			}
+			if eventType == "response.output_text.delta" && responseTextBuilder.Len() < conversationAuditTextLimit {
+				if delta := gjson.GetBytes(dataBytes, "delta").String(); delta != "" {
+					responseTextBuilder.WriteString(delta)
+				}
 			}
 			imageCounter.AddSSEData(dataBytes)
 			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
@@ -3997,6 +4029,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
 		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
+		responseText:     extractOpenAINonStreamResponseText(body),
 	}, nil
 }
 
@@ -4061,6 +4094,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
 		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),
+		responseText:     extractOpenAINonStreamResponseText(body),
 	}, nil
 }
 
@@ -4531,6 +4565,7 @@ type openaiStreamingResult struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
+	responseText     string
 }
 
 type openaiNonStreamingResult struct {
@@ -4539,6 +4574,7 @@ type openaiNonStreamingResult struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
+	responseText     string
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
@@ -4661,6 +4697,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			responseID:       responseID,
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
+			responseText:     streamOutputAccumulator.AccumulatedText(),
 		}
 	}
 	finalizeStream := func() (*openaiStreamingResult, error) {
@@ -5208,6 +5245,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
 		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
+		responseText:     extractOpenAINonStreamResponseText(body),
 	}, nil
 }
 
@@ -5274,6 +5312,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
 		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),
+		responseText:     extractOpenAINonStreamResponseText(body),
 	}, nil
 }
 
@@ -5730,6 +5769,8 @@ type OpenAIRecordUsageInput struct {
 	UserAgent          string // 请求的 User-Agent
 	IPAddress          string // 请求的客户端 IP 地址
 	RequestPayloadHash string
+	RequestExcerpt     string
+	ResponseExcerpt    string
 	APIKeyService      APIKeyQuotaUpdater
 	ChannelUsageFields
 }
@@ -5933,10 +5974,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+		s.writeConversationAuditBestEffort(ctx, input, usageLog, http.StatusOK)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
 	}
+
+	s.writeConversationAuditBestEffort(ctx, input, usageLog, http.StatusOK)
 
 	billingErr := func() error {
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
@@ -5960,6 +6004,37 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func (s *OpenAIGatewayService) writeConversationAuditBestEffort(ctx context.Context, input *OpenAIRecordUsageInput, usageLog *UsageLog, statusCode int) {
+	if s == nil || s.conversationAuditRepo == nil || input == nil || usageLog == nil {
+		return
+	}
+	responseExcerpt := input.ResponseExcerpt
+	if strings.TrimSpace(responseExcerpt) == "" && input.Result != nil {
+		responseExcerpt = input.Result.ResponseText
+	}
+	auditCtx, cancel := detachedBillingContext(ctx)
+	defer cancel()
+	if err := s.conversationAuditRepo.Create(auditCtx, &ConversationAuditLog{
+		RequestID:       usageLog.RequestID,
+		UserID:          usageLog.UserID,
+		APIKeyID:        usageLog.APIKeyID,
+		AccountID:       usageLog.AccountID,
+		GroupID:         usageLog.GroupID,
+		Model:           usageLog.Model,
+		Endpoint:        derefStringPtr(usageLog.InboundEndpoint),
+		RequestType:     int16(usageLog.RequestType),
+		RequestExcerpt:  TruncateConversationAuditText(input.RequestExcerpt),
+		ResponseExcerpt: TruncateConversationAuditText(responseExcerpt),
+		RequestHash:     firstNonEmptyString(input.RequestPayloadHash, HashConversationAuditText(input.RequestExcerpt)),
+		ResponseHash:    HashConversationAuditText(responseExcerpt),
+		StatusCode:      statusCode,
+		DurationMs:      derefIntPtr(usageLog.DurationMs),
+		CreatedAt:       usageLog.CreatedAt,
+	}); err != nil {
+		slog.Warn("openai conversation audit failed", "request_id", usageLog.RequestID, "error", err)
+	}
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(

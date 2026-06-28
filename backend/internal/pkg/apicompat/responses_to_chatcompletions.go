@@ -479,6 +479,15 @@ func (a *BufferedResponseAccumulator) HasContent() bool {
 	return a.text.Len() > 0 || len(a.funcCalls) > 0 || a.reasoning.Len() > 0
 }
 
+// AccumulatedText returns the aggregated assistant output text collected from
+// response.output_text.delta events. Used for best-effort conversation audit.
+func (a *BufferedResponseAccumulator) AccumulatedText() string {
+	if a == nil {
+		return ""
+	}
+	return a.text.String()
+}
+
 // BuildOutput constructs a []ResponsesOutput from the accumulated delta
 // content. The order matches what ResponsesToChatCompletions expects:
 // reasoning → message → function_calls.

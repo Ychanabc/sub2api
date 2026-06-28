@@ -308,7 +308,7 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string, locale .
 	}
 
 	// 获取网站名称
-	siteName := "Sub2API"
+	siteName := "Cats AI"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
@@ -351,7 +351,7 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, loc
 	}
 
 	// 获取网站名称
-	siteName := "Sub2API"
+	siteName := "Cats AI"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
@@ -743,6 +743,15 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate token pair: %w", err)
 	}
+	return tokenPair, user, nil
+}
+
+func (s *AuthService) LoginOrRegisterOAuthWithTokenPairAndPromoCode(ctx context.Context, email, username, invitationCode, affiliateCode, promoCode, signupSource string) (*TokenPair, *User, error) {
+	tokenPair, user, err := s.LoginOrRegisterOAuthWithTokenPair(ctx, email, username, invitationCode, affiliateCode, signupSource)
+	if err != nil {
+		return nil, nil, err
+	}
+	user = s.applyOAuthSignupPromoCode(ctx, user, promoCode)
 	return tokenPair, user, nil
 }
 
@@ -1271,7 +1280,7 @@ func (s *AuthService) preparePasswordReset(ctx context.Context, email, frontendB
 	}
 
 	// Get site name
-	siteName := "Sub2API"
+	siteName := "Cats AI"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}

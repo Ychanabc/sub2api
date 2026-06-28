@@ -570,6 +570,9 @@ type ForwardResult struct {
 	ImageOutputSizes   []string
 	ImageSizeSource    string
 	ImageSizeBreakdown map[string]int
+
+	// ResponseText 是上游回复的文本摘要，用于对话审计（best-effort，可能为空）。
+	ResponseText string
 }
 
 // UpstreamFailoverError indicates an upstream error that should trigger account failover.
@@ -605,6 +608,7 @@ type GatewayService struct {
 	accountRepo           AccountRepository
 	groupRepo             GroupRepository
 	usageLogRepo          UsageLogRepository
+	conversationAuditRepo ConversationAuditRepository
 	usageBillingRepo      UsageBillingRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
@@ -669,6 +673,7 @@ func NewGatewayService(
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	conversationAuditRepos ...ConversationAuditRepository,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -705,6 +710,9 @@ func NewGatewayService(
 		resolver:              resolver,
 		balanceNotifyService:  balanceNotifyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
+	}
+	if len(conversationAuditRepos) > 0 {
+		svc.conversationAuditRepo = conversationAuditRepos[0]
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
@@ -4785,7 +4793,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					// 2) Only if upstream still errors AND error message points to tool/function signature issues:
 					//    also downgrade tool_use/tool_result blocks to text.
 
-					filteredBody := FilterThinkingBlocksForRetry(body)
+					filteredBody := FilterThinkingBlocksForRetry(body, reqModel)
 					retryCtx, releaseRetryCtx := detachStreamUpstreamContext(ctx, reqStream)
 					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 					releaseRetryCtx()
@@ -4826,7 +4834,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 								msg2 := extractUpstreamErrorMessage(retryRespBody)
 								if looksLikeToolSignatureError(msg2) && time.Since(retryStart) < maxRetryElapsed {
 									logger.LegacyPrintf("service.gateway", "Account %d: signature retry still failing and looks tool-related, retrying with tool blocks downgraded", account.ID)
-									filteredBody2 := FilterSignatureSensitiveBlocksForRetry(body)
+									filteredBody2 := FilterSignatureSensitiveBlocksForRetry(body, reqModel)
 									retryCtx2, releaseRetryCtx2 := detachStreamUpstreamContext(ctx, reqStream)
 									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 									releaseRetryCtx2()
@@ -5131,6 +5139,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	var usage *ClaudeUsage
 	var firstTokenMs *int
 	var clientDisconnect bool
+	var responseText string
 	if reqStream {
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
 		if err != nil {
@@ -5144,11 +5153,14 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		usage = streamResult.usage
 		firstTokenMs = streamResult.firstTokenMs
 		clientDisconnect = streamResult.clientDisconnect
+		responseText = streamResult.responseText
 	} else {
-		usage, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, reqModel)
+		var nonStreamText string
+		usage, nonStreamText, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, reqModel)
 		if err != nil {
 			return nil, err
 		}
+		responseText = nonStreamText
 	}
 
 	return &ForwardResult{
@@ -5160,6 +5172,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		Duration:         time.Since(startTime),
 		FirstTokenMs:     firstTokenMs,
 		ClientDisconnect: clientDisconnect,
+		ResponseText:     responseText,
 	}, nil
 }
 
@@ -7592,7 +7605,8 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 type streamingResult struct {
 	usage            *ClaudeUsage
 	firstTokenMs     *int
-	clientDisconnect bool // 客户端是否在流式传输过程中断开
+	clientDisconnect bool   // 客户端是否在流式传输过程中断开
+	responseText     string // 聚合的回复文本摘要（用于对话审计）
 }
 
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
@@ -7725,6 +7739,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	needModelReplace := originalModel != mappedModel
 	clientDisconnected := false // 客户端断开标志，断开后继续读取上游以获取完整usage
 	sawTerminalEvent := false
+	var responseTextBuilder strings.Builder // 聚合回复文本（用于对话审计）
 
 	pendingEventLines := make([]string, 0, 4)
 
@@ -7780,6 +7795,15 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			eventName = eventType
 		}
 		eventChanged := false
+
+		// 聚合回复文本（content_block_delta.delta.text）用于对话审计。
+		if eventType == "content_block_delta" && responseTextBuilder.Len() < conversationAuditTextLimit {
+			if delta, ok := event["delta"].(map[string]any); ok {
+				if txt, ok := delta["text"].(string); ok && txt != "" {
+					responseTextBuilder.WriteString(txt)
+				}
+			}
+		}
 
 		// 兼容 Kimi cached_tokens → cache_read_input_tokens
 		if eventType == "message_start" {
@@ -7859,9 +7883,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			if !ok {
 				// 上游完成，返回结果
 				if !sawTerminalEvent {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("stream usage incomplete: missing terminal event")
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected, responseText: responseTextBuilder.String()}, fmt.Errorf("stream usage incomplete: missing terminal event")
 				}
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected, responseText: responseTextBuilder.String()}, nil
 			}
 			if ev.err != nil {
 				if sawTerminalEvent {
@@ -8217,13 +8241,13 @@ func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context,
 	return "", false
 }
 
-func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, error) {
+func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, string, error) {
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, anthropicTooLargeError)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// 解析usage
@@ -8231,7 +8255,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 		Usage ClaudeUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+		return nil, "", fmt.Errorf("parse response: %w", err)
 	}
 
 	// 解析嵌套的 cache_creation 对象中的 5m/1h 明细
@@ -8286,7 +8310,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	// 写入响应
 	c.Data(resp.StatusCode, contentType, body)
 
-	return &response.Usage, nil
+	return &response.Usage, extractAnthropicResponseText(body), nil
 }
 
 // replaceModelInResponseBody 替换响应体中的model字段
@@ -8326,12 +8350,14 @@ type RecordUsageInput struct {
 	APIKey             *APIKey
 	User               *User
 	Account            *Account
-	Subscription       *UserSubscription  // 可选：订阅信息
-	InboundEndpoint    string             // 入站端点（客户端请求路径）
-	UpstreamEndpoint   string             // 上游端点（标准化后的上游路径）
-	UserAgent          string             // 请求的 User-Agent
-	IPAddress          string             // 请求的客户端 IP 地址
-	RequestPayloadHash string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	Subscription       *UserSubscription // 可选：订阅信息
+	InboundEndpoint    string            // 入站端点（客户端请求路径）
+	UpstreamEndpoint   string            // 上游端点（标准化后的上游路径）
+	UserAgent          string            // 请求的 User-Agent
+	IPAddress          string            // 请求的客户端 IP 地址
+	RequestPayloadHash string            // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	RequestExcerpt     string
+	ResponseExcerpt    string
 	ForceCacheBilling  bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
 	APIKeyService      APIKeyQuotaUpdater // 可选：用于更新API Key配额
 	QuotaPlatform      string             // user×platform 配额计量平台：handler 在请求 ctx 内经 QuotaPlatform() 算定后传入（后扣运行在 worker 池 background ctx 上，取不到 ForcePlatform）
@@ -8820,11 +8846,32 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		UserAgent:          input.UserAgent,
 		IPAddress:          input.IPAddress,
 		RequestPayloadHash: input.RequestPayloadHash,
+		RequestExcerpt:     input.RequestExcerpt,
+		ResponseExcerpt:    input.ResponseExcerpt,
 		ForceCacheBilling:  input.ForceCacheBilling,
 		APIKeyService:      input.APIKeyService,
 		QuotaPlatform:      input.QuotaPlatform,
 		ChannelUsageFields: input.ChannelUsageFields,
 	}, &recordUsageOpts{})
+}
+
+type ConversationAuditStartInput struct {
+	RequestID          string
+	APIKey             *APIKey
+	User               *User
+	Model              string
+	InboundEndpoint    string
+	RequestType        int16
+	RequestPayloadHash string
+	RequestExcerpt     string
+	StatusCode         int
+}
+
+func (s *GatewayService) RecordConversationAuditStart(ctx context.Context, input *ConversationAuditStartInput) {
+	if s == nil || s.conversationAuditRepo == nil || input == nil {
+		return
+	}
+	writeConversationAuditStart(ctx, s.conversationAuditRepo, input, "gateway")
 }
 
 // RecordUsageLongContextInput 记录使用量的输入参数（支持长上下文双倍计费）
@@ -8833,12 +8880,14 @@ type RecordUsageLongContextInput struct {
 	APIKey                *APIKey
 	User                  *User
 	Account               *Account
-	Subscription          *UserSubscription  // 可选：订阅信息
-	InboundEndpoint       string             // 入站端点（客户端请求路径）
-	UpstreamEndpoint      string             // 上游端点（标准化后的上游路径）
-	UserAgent             string             // 请求的 User-Agent
-	IPAddress             string             // 请求的客户端 IP 地址
-	RequestPayloadHash    string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	Subscription          *UserSubscription // 可选：订阅信息
+	InboundEndpoint       string            // 入站端点（客户端请求路径）
+	UpstreamEndpoint      string            // 上游端点（标准化后的上游路径）
+	UserAgent             string            // 请求的 User-Agent
+	IPAddress             string            // 请求的客户端 IP 地址
+	RequestPayloadHash    string            // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	RequestExcerpt        string
+	ResponseExcerpt       string
 	LongContextThreshold  int                // 长上下文阈值（如 200000）
 	LongContextMultiplier float64            // 超出阈值部分的倍率（如 2.0）
 	ForceCacheBilling     bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
@@ -8861,6 +8910,8 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		UserAgent:          input.UserAgent,
 		IPAddress:          input.IPAddress,
 		RequestPayloadHash: input.RequestPayloadHash,
+		RequestExcerpt:     input.RequestExcerpt,
+		ResponseExcerpt:    input.ResponseExcerpt,
 		ForceCacheBilling:  input.ForceCacheBilling,
 		APIKeyService:      input.APIKeyService,
 		QuotaPlatform:      input.QuotaPlatform,
@@ -8883,6 +8934,8 @@ type recordUsageCoreInput struct {
 	UserAgent          string
 	IPAddress          string
 	RequestPayloadHash string
+	RequestExcerpt     string
+	ResponseExcerpt    string
 	ForceCacheBilling  bool
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string
@@ -8976,10 +9029,13 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		s.writeConversationAuditBestEffort(ctx, input, usageLog, http.StatusOK)
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
 	}
+
+	s.writeConversationAuditBestEffort(ctx, input, usageLog, http.StatusOK)
 
 	// 配额平台由 handler 在请求 ctx 内经 QuotaPlatform() 算定并通过 input 传入；
 	// 后扣运行在 worker 池的 background ctx 上，无法再从 ctx 取 ForcePlatform。
@@ -9008,6 +9064,37 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 
 	return nil
+}
+
+func (s *GatewayService) writeConversationAuditBestEffort(ctx context.Context, input *recordUsageCoreInput, usageLog *UsageLog, statusCode int) {
+	if s == nil || s.conversationAuditRepo == nil || input == nil || usageLog == nil {
+		return
+	}
+	responseExcerpt := input.ResponseExcerpt
+	if strings.TrimSpace(responseExcerpt) == "" && input.Result != nil {
+		responseExcerpt = input.Result.ResponseText
+	}
+	auditCtx, cancel := detachedBillingContext(ctx)
+	defer cancel()
+	if err := s.conversationAuditRepo.Create(auditCtx, &ConversationAuditLog{
+		RequestID:       usageLog.RequestID,
+		UserID:          usageLog.UserID,
+		APIKeyID:        usageLog.APIKeyID,
+		AccountID:       usageLog.AccountID,
+		GroupID:         usageLog.GroupID,
+		Model:           usageLog.Model,
+		Endpoint:        derefStringPtr(usageLog.InboundEndpoint),
+		RequestType:     int16(usageLog.RequestType),
+		RequestExcerpt:  TruncateConversationAuditText(input.RequestExcerpt),
+		ResponseExcerpt: TruncateConversationAuditText(responseExcerpt),
+		RequestHash:     firstNonEmptyString(input.RequestPayloadHash, HashConversationAuditText(input.RequestExcerpt)),
+		ResponseHash:    HashConversationAuditText(responseExcerpt),
+		StatusCode:      statusCode,
+		DurationMs:      derefIntPtr(usageLog.DurationMs),
+		CreatedAt:       usageLog.CreatedAt,
+	}); err != nil {
+		slog.Warn("gateway conversation audit failed", "request_id", usageLog.RequestID, "error", err)
+	}
 }
 
 // calculateRecordUsageCost 根据请求类型和选项计算费用。
@@ -9500,7 +9587,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 	if resp.StatusCode == 400 && s.shouldRectifySignatureError(ctx, account, respBody) {
 		logger.LegacyPrintf("service.gateway", "Account %d: detected thinking block signature error on count_tokens, retrying with filtered thinking blocks", account.ID)
 
-		filteredBody := FilterThinkingBlocksForRetry(body)
+		filteredBody := FilterThinkingBlocksForRetry(body, reqModel)
 		retryReq, retryWireBody, buildErr := s.buildCountTokensRequest(ctx, c, account, filteredBody, token, tokenType, reqModel, shouldMimicClaudeCode)
 		if buildErr == nil {
 			retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))

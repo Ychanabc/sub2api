@@ -1559,6 +1559,75 @@
             </div>
           </div>
 
+          <!-- Conversation Audit Security -->
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.auditSecurity.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.auditSecurity.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
+                {{ t("admin.settings.auditSecurity.requirement") }}
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.auditSecurity.secondaryPassword") }}
+                </label>
+                <input
+                  v-model="form.conversation_audit_secondary_password"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  :placeholder="
+                    form.conversation_audit_secondary_password_configured
+                      ? t('admin.settings.auditSecurity.passwordConfiguredPlaceholder')
+                      : t('admin.settings.auditSecurity.passwordPlaceholder')
+                  "
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{
+                    form.conversation_audit_secondary_password_configured
+                      ? t("admin.settings.auditSecurity.passwordConfiguredHint")
+                      : t("admin.settings.auditSecurity.passwordHint")
+                  }}
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t("admin.settings.auditSecurity.cleanupEnabled") }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.auditSecurity.cleanupHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.conversation_audit_cleanup_enabled" />
+              </div>
+
+              <div v-if="form.conversation_audit_cleanup_enabled" class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.auditSecurity.retentionDays") }}
+                </label>
+                <input
+                  v-model.number="form.conversation_audit_retention_days"
+                  type="number"
+                  min="1"
+                  max="3650"
+                  class="input w-40"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.auditSecurity.retentionHint") }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- API Key IP ACL Settings -->
           <div class="card">
             <div
@@ -7007,6 +7076,7 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  conversation_audit_secondary_password: string;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
@@ -7020,6 +7090,10 @@ const form = reactive<SettingsForm>({
   password_reset_enabled: false,
   totp_enabled: false,
   totp_encryption_key_configured: false,
+  conversation_audit_secondary_password: "",
+  conversation_audit_secondary_password_configured: false,
+  conversation_audit_cleanup_enabled: false,
+  conversation_audit_retention_days: 90,
   login_agreement_enabled: false,
   login_agreement_mode: "modal",
   login_agreement_updated_at: "2026-03-31",
@@ -7045,6 +7119,8 @@ const form = reactive<SettingsForm>({
   hide_ccs_import_button: false,
   payment_enabled: false,
   risk_control_enabled: false,
+  cyber_session_block_enabled: false,
+  cyber_session_block_ttl_seconds: 3600,
   payment_min_amount: 1,
   payment_max_amount: 10000,
   payment_daily_limit: 50000,
@@ -7200,6 +7276,9 @@ const form = reactive<SettingsForm>({
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
+  enable_claude_oauth_system_prompt_injection: true,
+  claude_oauth_system_prompt: "",
+  claude_oauth_system_prompt_blocks: "[]",
   enable_anthropic_cache_ttl_1h_injection: false,
   rewrite_message_cache_control: false,
   antigravity_user_agent_version: "",
@@ -7825,6 +7904,9 @@ async function loadSettings() {
     }
     form.login_agreement_mode =
       settings.login_agreement_mode === "checkbox" ? "checkbox" : "modal";
+    if (!form.claude_oauth_system_prompt_blocks?.trim()) {
+      form.claude_oauth_system_prompt_blocks = "[]";
+    }
     form.login_agreement_updated_at =
       settings.login_agreement_updated_at || "2026-03-31";
     form.login_agreement_documents =
@@ -7863,6 +7945,7 @@ async function loadSettings() {
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";
     form.wechat_connect_mobile_app_secret = "";
+    form.conversation_audit_secondary_password = "";
     const wechatCapabilities = resolveWeChatConnectModeCapabilities(
       settings.wechat_connect_open_enabled,
       settings.wechat_connect_mp_enabled,
@@ -8146,6 +8229,10 @@ async function saveSettings() {
     if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = "";
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
     syncWeChatConnectMode();
+    form.conversation_audit_retention_days = Math.min(
+      3650,
+      Math.max(1, Math.floor(Number(form.conversation_audit_retention_days) || 90)),
+    );
     const wechatStoredMode = deriveWeChatConnectStoredMode(
       form.wechat_connect_open_enabled,
       form.wechat_connect_mp_enabled,
@@ -8164,6 +8251,8 @@ async function saveSettings() {
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
+      conversation_audit_cleanup_enabled: form.conversation_audit_cleanup_enabled,
+      conversation_audit_retention_days: form.conversation_audit_retention_days,
       login_agreement_enabled: form.login_agreement_enabled,
       login_agreement_mode: form.login_agreement_mode,
       login_agreement_updated_at: form.login_agreement_updated_at,
@@ -8305,6 +8394,13 @@ async function saveSettings() {
       enable_fingerprint_unification: form.enable_fingerprint_unification,
       enable_metadata_passthrough: form.enable_metadata_passthrough,
       enable_cch_signing: form.enable_cch_signing,
+      enable_claude_oauth_system_prompt_injection:
+        form.enable_claude_oauth_system_prompt_injection,
+      claude_oauth_system_prompt: form.claude_oauth_system_prompt?.trim()
+        ? form.claude_oauth_system_prompt
+        : "",
+      claude_oauth_system_prompt_blocks:
+        form.claude_oauth_system_prompt_blocks || "[]",
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
@@ -8316,6 +8412,9 @@ async function saveSettings() {
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
+      cyber_session_block_enabled: form.cyber_session_block_enabled,
+      cyber_session_block_ttl_seconds:
+        Number(form.cyber_session_block_ttl_seconds) || 3600,
       payment_min_amount: Number(form.payment_min_amount) || 0,
       payment_max_amount: Number(form.payment_max_amount) || 0,
       payment_daily_limit: Number(form.payment_daily_limit) || 0,
@@ -8393,6 +8492,10 @@ async function saveSettings() {
       };
     }
 
+    const auditSecondaryPassword = form.conversation_audit_secondary_password.trim();
+    if (auditSecondaryPassword) {
+      payload.conversation_audit_secondary_password = auditSecondaryPassword;
+    }
     payload.default_platform_quotas = sanitizePlatformQuotasMap(form.default_platform_quotas);
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
 
@@ -8426,6 +8529,7 @@ async function saveSettings() {
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";
     form.wechat_connect_mobile_app_secret = "";
+    form.conversation_audit_secondary_password = "";
     const updatedWechatCapabilities = resolveWeChatConnectModeCapabilities(
       updated.wechat_connect_open_enabled,
       updated.wechat_connect_mp_enabled,
@@ -8930,6 +9034,7 @@ const allPaymentTypes = computed(() => [
   { value: "easypay", label: t("payment.methods.easypay") },
   { value: "alipay", label: t("payment.methods.alipay") },
   { value: "wxpay", label: t("payment.methods.wxpay") },
+  { value: "usdt", label: t("payment.methods.usdt") },
   { value: "stripe", label: t("payment.methods.stripe") },
   { value: "airwallex", label: t("payment.methods.airwallex") },
 ]);
@@ -8985,6 +9090,7 @@ const providerDialogRef = ref<InstanceType<
 
 const providerKeyOptions = computed(() => [
   { value: "easypay", label: t("admin.settings.payment.providerEasypay") },
+  { value: "usdt", label: t("admin.settings.payment.providerUsdt") },
   { value: "alipay", label: t("admin.settings.payment.providerAlipay") },
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },
   { value: "stripe", label: t("admin.settings.payment.providerStripe") },

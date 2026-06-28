@@ -39,6 +39,26 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
+  const createProxyOptions = () => ({
+    target: backendUrl,
+    changeOrigin: true,
+    secure: false,
+    proxyTimeout: 15000,
+    timeout: 15000,
+    configure(proxy) {
+      proxy.on('error', (error, req, res) => {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`[vite] proxy failed: ${req.url} -> ${backendUrl}: ${message}`)
+
+        if (!res || res.headersSent) return
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify({
+          code: 'DEV_PROXY_UNAVAILABLE',
+          message: 'Development proxy temporarily unavailable',
+        }))
+      })
+    }
+  })
 
   return {
     plugins: [
@@ -110,18 +130,10 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: devPort,
       proxy: {
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/v1': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/setup': {
-          target: backendUrl,
-          changeOrigin: true
-        }
+        '/api': createProxyOptions(),
+        '/v1': createProxyOptions(),
+        '/setup': createProxyOptions(),
+        '/health': createProxyOptions()
       }
     }
   }

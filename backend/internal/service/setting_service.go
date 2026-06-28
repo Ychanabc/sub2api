@@ -835,7 +835,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		LoginAgreementDocuments:          loginAgreementDocuments,
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
+		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Cats AI"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
@@ -951,6 +951,23 @@ func (s *SettingService) GetAvailableChannelsRuntime(ctx context.Context) Availa
 	return AvailableChannelsRuntime{
 		Enabled: vals[SettingKeyAvailableChannelsEnabled] == "true",
 	}
+}
+
+func (s *SettingService) GetCyberSessionBlockRuntime(ctx context.Context) (bool, time.Duration) {
+	if s == nil || s.settingRepo == nil {
+		return false, time.Hour
+	}
+	enabledRaw, err := s.settingRepo.GetValue(ctx, SettingKeyCyberSessionBlockEnabled)
+	if err != nil || strings.TrimSpace(enabledRaw) != "true" {
+		return false, time.Hour
+	}
+	ttl := time.Hour
+	if raw, err := s.settingRepo.GetValue(ctx, SettingKeyCyberSessionBlockTTLSeconds); err == nil {
+		if seconds, parseErr := strconv.Atoi(strings.TrimSpace(raw)); parseErr == nil && seconds > 0 {
+			ttl = time.Duration(seconds) * time.Second
+		}
+	}
+	return true, ttl
 }
 
 // IsUserErrorViewAllowed reads the user-facing error-requests visibility switch
@@ -1678,6 +1695,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyFrontendURL] = settings.FrontendURL
 	updates[SettingKeyInvitationCodeEnabled] = strconv.FormatBool(settings.InvitationCodeEnabled)
 	updates[SettingKeyTotpEnabled] = strconv.FormatBool(settings.TotpEnabled)
+	if strings.TrimSpace(settings.ConversationAuditSecondaryPasswordHash) != "" {
+		updates[SettingKeyAuditSecondaryPasswordHash] = strings.TrimSpace(settings.ConversationAuditSecondaryPasswordHash)
+	}
+	retentionDays := settings.ConversationAuditRetentionDays
+	if retentionDays <= 0 {
+		retentionDays = 90
+	}
+	if retentionDays > 3650 {
+		retentionDays = 3650
+	}
+	updates[SettingKeyAuditCleanupEnabled] = strconv.FormatBool(settings.ConversationAuditCleanupEnabled)
+	updates[SettingKeyAuditRetentionDays] = strconv.Itoa(retentionDays)
 	settings.LoginAgreementMode = normalizeLoginAgreementMode(settings.LoginAgreementMode)
 	settings.LoginAgreementUpdatedAt = strings.TrimSpace(settings.LoginAgreementUpdatedAt)
 	if settings.LoginAgreementUpdatedAt == "" {
@@ -2493,7 +2522,7 @@ func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
 func (s *SettingService) GetSiteName(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySiteName)
 	if err != nil || value == "" {
-		return "Sub2API"
+		return "Cats AI"
 	}
 	return value
 }
@@ -2688,7 +2717,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyLoginAgreementUpdatedAt:                   defaultLoginAgreementDate,
 		SettingKeyLoginAgreementDocuments:                   loginAgreementDocumentsJSON,
 		SettingKeyAPIKeyACLTrustForwardedIP:                 "false",
-		SettingKeySiteName:                                  "Sub2API",
+		SettingKeySiteName:                                  "Cats AI",
 		SettingKeySiteLogo:                                  "",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
@@ -2788,6 +2817,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAuthSourceDefaultDingTalkGrantOnSignup:    "false",
 		SettingKeyAuthSourceDefaultDingTalkGrantOnFirstBind: "false",
 		SettingKeyForceEmailOnThirdPartySignup:              "false",
+		SettingKeyAuditSecondaryPasswordHash:                "",
+		SettingKeyAuditCleanupEnabled:                       "false",
+		SettingKeyAuditRetentionDays:                        "90",
 		SettingKeySMTPPort:                                  "587",
 		SettingKeySMTPUseTLS:                                "false",
 		// Model fallback defaults
@@ -2856,41 +2888,45 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		apiKeyACLTrustForwardedIP = s.cfg.Security.TrustForwardedIPForAPIKeyACL
 	}
 	result := &SystemSettings{
-		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
-		EmailVerifyEnabled:               emailVerifyEnabled,
-		RegistrationEmailSuffixWhitelist: ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
-		PromoCodeEnabled:                 settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
-		PasswordResetEnabled:             emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
-		FrontendURL:                      settings[SettingKeyFrontendURL],
-		InvitationCodeEnabled:            settings[SettingKeyInvitationCodeEnabled] == "true",
-		TotpEnabled:                      settings[SettingKeyTotpEnabled] == "true",
-		LoginAgreementEnabled:            settings[SettingKeyLoginAgreementEnabled] == "true",
-		LoginAgreementMode:               normalizeLoginAgreementMode(settings[SettingKeyLoginAgreementMode]),
-		LoginAgreementUpdatedAt:          loginAgreementUpdatedAt,
-		LoginAgreementDocuments:          loginAgreementDocuments,
-		SMTPHost:                         settings[SettingKeySMTPHost],
-		SMTPUsername:                     settings[SettingKeySMTPUsername],
-		SMTPFrom:                         settings[SettingKeySMTPFrom],
-		SMTPFromName:                     settings[SettingKeySMTPFromName],
-		SMTPUseTLS:                       settings[SettingKeySMTPUseTLS] == "true",
-		SMTPPasswordConfigured:           settings[SettingKeySMTPPassword] != "",
-		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
-		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
-		TurnstileSecretKeyConfigured:     settings[SettingKeyTurnstileSecretKey] != "",
-		APIKeyACLTrustForwardedIP:        apiKeyACLTrustForwardedIP,
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
-		SiteLogo:                         settings[SettingKeySiteLogo],
-		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
-		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
-		ContactInfo:                      settings[SettingKeyContactInfo],
-		DocURL:                           settings[SettingKeyDocURL],
-		HomeContent:                      settings[SettingKeyHomeContent],
-		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
-		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
-		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
-		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
-		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
-		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
+		RegistrationEnabled:                          settings[SettingKeyRegistrationEnabled] == "true",
+		EmailVerifyEnabled:                           emailVerifyEnabled,
+		RegistrationEmailSuffixWhitelist:             ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
+		PromoCodeEnabled:                             settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
+		PasswordResetEnabled:                         emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
+		FrontendURL:                                  settings[SettingKeyFrontendURL],
+		InvitationCodeEnabled:                        settings[SettingKeyInvitationCodeEnabled] == "true",
+		TotpEnabled:                                  settings[SettingKeyTotpEnabled] == "true",
+		ConversationAuditSecondaryPasswordHash:       strings.TrimSpace(settings[SettingKeyAuditSecondaryPasswordHash]),
+		ConversationAuditSecondaryPasswordConfigured: strings.TrimSpace(settings[SettingKeyAuditSecondaryPasswordHash]) != "",
+		ConversationAuditCleanupEnabled:              settings[SettingKeyAuditCleanupEnabled] == "true",
+		ConversationAuditRetentionDays:               90,
+		LoginAgreementEnabled:                        settings[SettingKeyLoginAgreementEnabled] == "true",
+		LoginAgreementMode:                           normalizeLoginAgreementMode(settings[SettingKeyLoginAgreementMode]),
+		LoginAgreementUpdatedAt:                      loginAgreementUpdatedAt,
+		LoginAgreementDocuments:                      loginAgreementDocuments,
+		SMTPHost:                                     settings[SettingKeySMTPHost],
+		SMTPUsername:                                 settings[SettingKeySMTPUsername],
+		SMTPFrom:                                     settings[SettingKeySMTPFrom],
+		SMTPFromName:                                 settings[SettingKeySMTPFromName],
+		SMTPUseTLS:                                   settings[SettingKeySMTPUseTLS] == "true",
+		SMTPPasswordConfigured:                       settings[SettingKeySMTPPassword] != "",
+		TurnstileEnabled:                             settings[SettingKeyTurnstileEnabled] == "true",
+		TurnstileSiteKey:                             settings[SettingKeyTurnstileSiteKey],
+		TurnstileSecretKeyConfigured:                 settings[SettingKeyTurnstileSecretKey] != "",
+		APIKeyACLTrustForwardedIP:                    apiKeyACLTrustForwardedIP,
+		SiteName:                                     s.getStringOrDefault(settings, SettingKeySiteName, "Cats AI"),
+		SiteLogo:                                     settings[SettingKeySiteLogo],
+		SiteSubtitle:                                 s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
+		APIBaseURL:                                   settings[SettingKeyAPIBaseURL],
+		ContactInfo:                                  settings[SettingKeyContactInfo],
+		DocURL:                                       settings[SettingKeyDocURL],
+		HomeContent:                                  settings[SettingKeyHomeContent],
+		HideCcsImportButton:                          settings[SettingKeyHideCcsImportButton] == "true",
+		PurchaseSubscriptionEnabled:                  settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
+		PurchaseSubscriptionURL:                      strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		CustomMenuItems:                              settings[SettingKeyCustomMenuItems],
+		CustomEndpoints:                              settings[SettingKeyCustomEndpoints],
+		BackendModeEnabled:                           settings[SettingKeyBackendModeEnabled] == "true",
 	}
 	result.TableDefaultPageSize, result.TablePageSizeOptions = parseTablePreferences(
 		settings[SettingKeyTableDefaultPageSize],
@@ -2912,6 +2948,13 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	if rpm, err := strconv.Atoi(settings[SettingKeyDefaultUserRPMLimit]); err == nil && rpm >= 0 {
 		result.DefaultUserRPMLimit = rpm
+	}
+
+	if days, err := strconv.Atoi(strings.TrimSpace(settings[SettingKeyAuditRetentionDays])); err == nil && days > 0 {
+		if days > 3650 {
+			days = 3650
+		}
+		result.ConversationAuditRetentionDays = days
 	}
 
 	// 解析浮点数类型

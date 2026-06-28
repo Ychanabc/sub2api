@@ -26,7 +26,7 @@ type EmailOAuthIdentityInput struct {
 }
 
 func (s *AuthService) LoginOrRegisterVerifiedEmailOAuth(ctx context.Context, input EmailOAuthIdentityInput) (*TokenPair, *User, error) {
-	return s.loginOrRegisterVerifiedEmailOAuth(ctx, input, "", "")
+	return s.loginOrRegisterVerifiedEmailOAuth(ctx, input, "", "", "")
 }
 
 func (s *AuthService) LoginOrRegisterVerifiedEmailOAuthWithInvitation(
@@ -35,7 +35,17 @@ func (s *AuthService) LoginOrRegisterVerifiedEmailOAuthWithInvitation(
 	invitationCode string,
 	affiliateCode string,
 ) (*TokenPair, *User, error) {
-	return s.loginOrRegisterVerifiedEmailOAuth(ctx, input, invitationCode, affiliateCode)
+	return s.loginOrRegisterVerifiedEmailOAuth(ctx, input, invitationCode, affiliateCode, "")
+}
+
+func (s *AuthService) LoginOrRegisterVerifiedEmailOAuthWithSignupCodes(
+	ctx context.Context,
+	input EmailOAuthIdentityInput,
+	invitationCode string,
+	affiliateCode string,
+	promoCode string,
+) (*TokenPair, *User, error) {
+	return s.loginOrRegisterVerifiedEmailOAuth(ctx, input, invitationCode, affiliateCode, promoCode)
 }
 
 func (s *AuthService) loginOrRegisterVerifiedEmailOAuth(
@@ -43,6 +53,7 @@ func (s *AuthService) loginOrRegisterVerifiedEmailOAuth(
 	input EmailOAuthIdentityInput,
 	invitationCode string,
 	affiliateCode string,
+	promoCode string,
 ) (*TokenPair, *User, error) {
 	if s == nil || s.userRepo == nil || s.entClient == nil {
 		return nil, nil, ErrServiceUnavailable
@@ -131,6 +142,8 @@ func (s *AuthService) loginOrRegisterVerifiedEmailOAuth(
 		if err := s.ApplyProviderDefaultSettingsOnFirstBind(ctx, user.ID, providerType); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to apply %s first bind defaults: %v", providerType, err)
 		}
+	} else {
+		user = s.applyOAuthSignupPromoCode(ctx, user, promoCode)
 	}
 	s.RecordSuccessfulLogin(ctx, user.ID)
 
@@ -139,6 +152,37 @@ func (s *AuthService) loginOrRegisterVerifiedEmailOAuth(
 		return nil, nil, fmt.Errorf("generate token pair: %w", err)
 	}
 	return tokenPair, user, nil
+}
+
+func (s *AuthService) ApplyOAuthSignupPromoCode(ctx context.Context, userID int64, promoCode string) {
+	if userID <= 0 || strings.TrimSpace(promoCode) == "" || s == nil || s.promoService == nil || s.settingService == nil {
+		return
+	}
+	if !s.settingService.IsPromoCodeEnabled(ctx) {
+		return
+	}
+	if err := s.promoService.ApplyPromoCode(ctx, userID, promoCode); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to apply oauth promo code for user %d: %v", userID, err)
+	}
+}
+
+func (s *AuthService) applyOAuthSignupPromoCode(ctx context.Context, user *User, promoCode string) *User {
+	if user == nil || strings.TrimSpace(promoCode) == "" || s == nil || s.promoService == nil || s.settingService == nil {
+		return user
+	}
+	if !s.settingService.IsPromoCodeEnabled(ctx) {
+		return user
+	}
+	if err := s.promoService.ApplyPromoCode(ctx, user.ID, promoCode); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to apply oauth promo code for user %d: %v", user.ID, err)
+		return user
+	}
+	if s.userRepo != nil {
+		if updatedUser, err := s.userRepo.GetByID(ctx, user.ID); err == nil {
+			return updatedUser
+		}
+	}
+	return user
 }
 
 func (s *AuthService) createEmailOAuthUser(ctx context.Context, email, username, providerType, invitationCode, affiliateCode string) (*User, error) {

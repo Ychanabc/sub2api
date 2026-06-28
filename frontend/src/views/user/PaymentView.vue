@@ -632,6 +632,7 @@ const paymentButtonClass = computed(() => {
   if (!m) return 'btn-primary'
   if (m.includes('alipay')) return 'btn-alipay'
   if (m.includes('wxpay')) return 'btn-wxpay'
+  if (m === 'usdt') return 'btn-usdt'
   if (m === 'stripe') return 'btn-stripe'
   if (m === 'airwallex') return 'btn-airwallex'
   return 'btn-primary'

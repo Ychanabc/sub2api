@@ -83,7 +83,18 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
 	setOpsRequestContext(c, reqModel, reqStream)
-	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
+	requestType := int16(service.RequestTypeFromLegacy(reqStream, false))
+	setOpsEndpointContext(c, "", requestType)
+	h.gatewayService.RecordConversationAuditStart(c.Request.Context(), &service.ConversationAuditStartInput{
+		RequestID:          gatewayRequestID(c),
+		APIKey:             apiKey,
+		User:               apiKey.User,
+		Model:              reqModel,
+		InboundEndpoint:    GetInboundEndpoint(c),
+		RequestType:        requestType,
+		RequestPayloadHash: service.HashUsageRequestPayload(body),
+		RequestExcerpt:     string(body),
+	})
 
 	if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && decision.Blocked {
 		h.errorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
@@ -294,6 +305,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 				UpstreamEndpoint:   upstreamEndpoint,
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
+				RequestExcerpt:     string(body),
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {

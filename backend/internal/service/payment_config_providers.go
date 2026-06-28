@@ -111,6 +111,7 @@ var pendingOrderStatuses = []string{
 // stripe publishableKey) are returned in plaintext by the admin GET API.
 var providerSensitiveConfigFields = map[string]map[string]struct{}{
 	payment.TypeEasyPay:   {"pkey": {}},
+	payment.TypeUSDT:      {"apitoken": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}},
@@ -123,6 +124,7 @@ var providerSensitiveConfigFields = map[string]map[string]struct{}{
 // webhook/refund verification.
 var providerPendingOrderProtectedConfigFields = map[string]map[string]struct{}{
 	payment.TypeEasyPay:   {"pkey": {}, "pid": {}},
+	payment.TypeUSDT:      {"apitoken": {}, "apibase": {}, "tradetype": {}, "fiat": {}, "address": {}, "createpath": {}, "querypath": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}, "appid": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}, "appid": {}, "mpappid": {}, "mchid": {}, "publickeyid": {}, "certserial": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}, "currency": {}},
@@ -177,10 +179,12 @@ func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, pla
 }
 
 var validProviderKeys = map[string]bool{
-	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
+	payment.TypeEasyPay: true, payment.TypeUSDT: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
 }
 
 func (s *PaymentConfigService) CreateProviderInstance(ctx context.Context, req CreateProviderInstanceRequest) (*dbent.PaymentProviderInstance, error) {
+	req.ProviderKey = normalizeProviderKey(req.ProviderKey)
+	req.SupportedTypes = normalizePaymentTypes(req.SupportedTypes)
 	typesStr := joinTypes(req.SupportedTypes)
 	if err := validateProviderRequest(req.ProviderKey, req.Name, typesStr); err != nil {
 		return nil, err
@@ -210,11 +214,36 @@ func validateProviderRequest(providerKey, name, supportedTypes string) error {
 	if strings.TrimSpace(name) == "" {
 		return infraerrors.BadRequest("VALIDATION_ERROR", "provider name is required")
 	}
+	providerKey = normalizeProviderKey(providerKey)
 	if !validProviderKeys[providerKey] {
 		return infraerrors.BadRequest("VALIDATION_ERROR", fmt.Sprintf("invalid provider key: %s", providerKey))
 	}
 	// supported_types can be empty (provider accepts no payment types until configured)
 	return nil
+}
+
+func normalizeProviderKey(providerKey string) string {
+	return strings.ToLower(strings.TrimSpace(providerKey))
+}
+
+func normalizePaymentTypes(types []string) []string {
+	if len(types) == 0 {
+		return types
+	}
+	seen := make(map[string]struct{}, len(types))
+	normalized := make([]string, 0, len(types))
+	for _, t := range types {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		normalized = append(normalized, t)
+	}
+	return normalized
 }
 
 // UpdateProviderInstance updates a provider instance by ID (patch semantics).
@@ -243,6 +272,7 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 	}
 	nextSupportedTypes := current.SupportedTypes
 	if req.SupportedTypes != nil {
+		req.SupportedTypes = normalizePaymentTypes(req.SupportedTypes)
 		nextSupportedTypes = joinTypes(req.SupportedTypes)
 	}
 	if err := s.validateVisibleMethodEnablementConflicts(ctx, id, current.ProviderKey, nextSupportedTypes, nextEnabled); err != nil {

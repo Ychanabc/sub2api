@@ -2,108 +2,93 @@
   <AppLayout>
     <TablePageLayout>
       <template #actions>
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <!-- Total Requests -->
-          <div class="card p-4">
-          <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-              <Icon name="document" size="md" class="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ t('usage.totalRequests') }}
-              </p>
-              <p class="text-xl font-bold text-gray-900 dark:text-white">
-                {{ usageStats?.total_requests?.toLocaleString() || '0' }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('usage.inSelectedRange') }}
-              </p>
+        <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="usage-summary-card">
+            <div class="flex min-w-0 items-start gap-4">
+              <div class="usage-summary-icon bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                <Icon name="document" size="md" class="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="usage-summary-label">{{ t('usage.totalRequests') }}</p>
+                <p class="usage-summary-value">
+                  {{ usageStats?.total_requests?.toLocaleString() || '0' }}
+                </p>
+                <p class="usage-summary-hint">
+                  {{ t('usage.inSelectedRange') }}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Total Tokens -->
-        <div class="card p-4">
-          <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
-              <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ t('usage.totalTokens') }}
-              </p>
-              <p class="text-xl font-bold text-gray-900 dark:text-white">
-                {{ formatTokens(usageStats?.total_tokens || 0) }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                <span>{{ t('usage.in') }} {{ formatTokens(usageStats?.total_input_tokens || 0) }}</span>
-                <span> · </span>
-                <span>{{ t('usage.out') }} {{ formatTokens(usageStats?.total_output_tokens || 0) }}</span>
-                <span> · </span>
-                <span class="text-sky-600 dark:text-sky-400">{{ t('usage.cacheHit') }} {{ formatTokens(usageStats?.total_cache_read_tokens || 0) }}</span>
-                <span> · </span>
-                <span class="text-amber-600 dark:text-amber-400">{{ t('usage.cacheCreate') }} {{ formatTokens(usageStats?.total_cache_creation_tokens || 0) }}</span>
-              </p>
-              <p class="text-xs text-gray-400 dark:text-gray-500">
-                {{ t('usage.cacheHitRate') }}:
-                <template v-if="cacheStats.totalInput > 0">
-                  <span class="text-sky-600 dark:text-sky-400">{{ formatTokens(cacheStats.cacheRead) }}</span>
-                  <span class="text-gray-400">/</span>
-                  <span class="text-gray-600 dark:text-gray-300">{{ formatTokens(cacheStats.totalInput) }}</span>
-                  <span class="ml-1">{{ cacheStats.ratePercent }}</span>
-                </template>
-                <template v-else>-</template>
-              </p>
+          <div class="usage-summary-card">
+            <div class="flex min-w-0 items-start gap-4">
+              <div class="usage-summary-icon bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="usage-summary-label">{{ t('usage.totalTokens') }}</p>
+                <p class="usage-summary-value">
+                  {{ formatTokens(usageStats?.total_tokens || 0) }}
+                </p>
+                <p class="usage-summary-token-line">
+                  <span>{{ t('usage.in') }} {{ formatTokens(usageStats?.total_input_tokens || 0) }}</span>
+                  <span>{{ t('usage.out') }} {{ formatTokens(usageStats?.total_output_tokens || 0) }}</span>
+                  <span class="text-sky-600 dark:text-sky-400">{{ t('usage.cacheHit') }} {{ formatTokens(usageStats?.total_cache_read_tokens || 0) }}</span>
+                  <span class="text-amber-600 dark:text-amber-400">{{ t('usage.cacheCreate') }} {{ formatTokens(usageStats?.total_cache_creation_tokens || 0) }}</span>
+                </p>
+                <p class="usage-summary-hint">
+                  {{ t('usage.cacheHitRate') }}:
+                  <template v-if="cacheStats.totalInput > 0">
+                    <span class="text-sky-600 dark:text-sky-400">{{ formatTokens(cacheStats.cacheRead) }}</span>
+                    <span class="text-gray-400">/</span>
+                    <span class="text-gray-600 dark:text-gray-300">{{ formatTokens(cacheStats.totalInput) }}</span>
+                    <span class="ml-1">{{ cacheStats.ratePercent }}</span>
+                  </template>
+                  <template v-else>-</template>
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Total Cost -->
-        <div class="card p-4">
-          <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-              <Icon name="dollar" size="md" class="text-green-600 dark:text-green-400" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ t('usage.totalCost') }}
-              </p>
-              <p class="text-xl font-bold text-green-600 dark:text-green-400">
-                ${{ (usageStats?.total_actual_cost || 0).toFixed(4) }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('usage.actualCost') }} /
-                <span class="line-through">${{ (usageStats?.total_cost || 0).toFixed(4) }}</span>
-                {{ t('usage.standardCost') }}
-              </p>
+          <div class="usage-summary-card">
+            <div class="flex min-w-0 items-start gap-4">
+              <div class="usage-summary-icon bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                <Icon name="dollar" size="md" class="text-green-600 dark:text-green-400" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="usage-summary-label">{{ t('usage.totalCost') }}</p>
+                <p class="usage-summary-value text-green-600 dark:text-green-400">
+                  ${{ (usageStats?.total_actual_cost || 0).toFixed(4) }}
+                </p>
+                <p class="usage-summary-hint">
+                  {{ t('usage.actualCost') }} /
+                  <span class="line-through">${{ (usageStats?.total_cost || 0).toFixed(4) }}</span>
+                  {{ t('usage.standardCost') }}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Average Duration -->
-        <div class="card p-4">
-          <div class="flex items-center gap-3">
-            <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-              <Icon name="clock" size="md" class="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ t('usage.avgDuration') }}
-              </p>
-              <p class="text-xl font-bold text-gray-900 dark:text-white">
-                {{ formatDuration(usageStats?.average_duration_ms || 0) }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('usage.perRequest') }}</p>
+          <div class="usage-summary-card">
+            <div class="flex min-w-0 items-start gap-4">
+              <div class="usage-summary-icon bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                <Icon name="clock" size="md" class="text-purple-600 dark:text-purple-400" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="usage-summary-label">{{ t('usage.avgDuration') }}</p>
+                <p class="usage-summary-value">
+                  {{ formatDuration(usageStats?.average_duration_ms || 0) }}
+                </p>
+                <p class="usage-summary-hint">{{ t('usage.perRequest') }}</p>
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </template>
 
       <template #filters>
         <div class="card">
-          <div class="px-6 py-4">
+          <div class="px-5 py-4">
           <div class="flex flex-wrap items-end gap-4">
             <!-- API Key Filter -->
             <div class="min-w-[180px]">
@@ -127,7 +112,7 @@
             </div>
 
             <!-- Actions -->
-            <div class="ml-auto flex items-center gap-3">
+            <div class="ml-auto flex flex-wrap items-center gap-3">
               <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
                 {{ t('common.refresh') }}
               </button>
@@ -411,15 +396,15 @@
       }"
     >
       <div
-        class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+        class="ios-tooltip-panel whitespace-nowrap"
       >
         <div class="space-y-1.5">
           <!-- Token Breakdown -->
           <div>
-            <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.tokenDetails') }}</div>
+            <div class="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{{ t('usage.tokenDetails') }}</div>
             <div v-if="tokenTooltipData && tokenTooltipData.input_tokens > 0" class="flex items-center justify-between gap-4">
-              <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
-              <span class="font-medium text-white">{{ tokenTooltipData.input_tokens.toLocaleString() }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ tokenTooltipData.input_tokens.toLocaleString() }}</span>
             </div>
             <div v-if="tokenTooltipData && tokenTooltipData.output_tokens > 0 && !hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
@@ -470,14 +455,14 @@
             </div>
           </div>
           <!-- Total -->
-          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
-            <span class="text-gray-400">{{ t('usage.totalTokens') }}</span>
+          <div class="flex items-center justify-between gap-6 border-t border-gray-200 pt-1.5 dark:border-white/10">
+            <span class="text-gray-500 dark:text-gray-400">{{ t('usage.totalTokens') }}</span>
             <span class="font-semibold text-blue-400">{{ ((tokenTooltipData?.input_tokens || 0) + (tokenTooltipData?.output_tokens || 0) + (tokenTooltipData?.cache_creation_tokens || 0) + (tokenTooltipData?.cache_read_tokens || 0)).toLocaleString() }}</span>
           </div>
         </div>
         <!-- Tooltip Arrow (left side) -->
         <div
-          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"
+          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-white/80 border-t-transparent dark:border-r-dark-800/80"
         ></div>
       </div>
     </div>
@@ -494,15 +479,15 @@
       }"
     >
       <div
-        class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+        class="ios-tooltip-panel whitespace-nowrap"
       >
         <div class="space-y-1.5">
           <!-- Cost Breakdown -->
-          <div class="mb-2 border-b border-gray-700 pb-1.5">
-            <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.costDetails') }}</div>
+          <div class="mb-2 border-b border-gray-200 pb-1.5 dark:border-white/10">
+            <div class="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{{ t('usage.costDetails') }}</div>
             <div v-if="tooltipData && tooltipData.input_cost > 0" class="flex items-center justify-between gap-4">
-              <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
-              <span class="font-medium text-white">${{ tooltipData.input_cost.toFixed(6) }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.inputCost') }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">${{ tooltipData.input_cost.toFixed(6) }}</span>
             </div>
             <div v-if="tooltipData && tooltipData.output_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputCost') }}</span>
@@ -599,7 +584,7 @@
         </div>
         <!-- Tooltip Arrow (left side) -->
         <div
-          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"
+          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-white/80 border-t-transparent dark:border-r-dark-800/80"
         ></div>
       </div>
     </div>
@@ -1118,3 +1103,58 @@ onMounted(() => {
   loadUsageStats()
 })
 </script>
+
+<style scoped>
+.usage-summary-card {
+  @apply h-full min-h-[132px] border p-5 transition-all duration-200 dark:border-dark-700;
+  background: var(--ios-surface);
+  border-color: var(--ios-border);
+  border-radius: var(--ios-radius);
+  box-shadow: var(--ios-shadow-soft);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+
+.usage-summary-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ios-shadow);
+}
+
+.usage-summary-icon {
+  @apply flex h-12 w-12 flex-shrink-0 items-center justify-center;
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.usage-summary-label {
+  @apply truncate text-xs font-medium text-gray-500 dark:text-gray-400;
+}
+
+.usage-summary-value {
+  @apply mt-1 truncate text-xl font-semibold leading-7 text-gray-900 dark:text-white;
+}
+
+.usage-summary-hint {
+  @apply mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400;
+}
+
+.usage-summary-token-line {
+  @apply mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs leading-5 text-gray-500 dark:text-gray-400;
+}
+
+.ios-tooltip-panel :deep(.text-white) {
+  color: rgb(17 24 39);
+}
+
+.ios-tooltip-panel :deep(.text-gray-400) {
+  color: rgb(107 114 128);
+}
+
+.dark .ios-tooltip-panel :deep(.text-white) {
+  color: rgb(255 255 255);
+}
+
+.dark .ios-tooltip-panel :deep(.text-gray-400) {
+  color: rgb(156 163 175);
+}
+</style>

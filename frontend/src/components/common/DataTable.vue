@@ -60,20 +60,67 @@
     </template>
   </div>
 
-  <div
-    v-else
-    ref="tableWrapperRef"
-    class="table-wrapper"
-    :class="{
-      'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable
-    }"
-  >
+  <div v-else class="basic-table">
+    <div class="basic-table-toolbar">
+      <div class="basic-table-meta">
+        <span class="basic-table-title">Data</span>
+        <span class="basic-table-count">{{ sortedData.length }} {{ t('pagination.results') }}</span>
+      </div>
+      <div class="basic-table-tools">
+        <button
+          type="button"
+          class="basic-table-tool"
+          :class="{ 'basic-table-tool-active': density === 'compact' }"
+          title="Compact rows"
+          aria-label="Toggle compact rows"
+          @click="toggleDensity"
+        >
+          <Icon name="arrowsUpDown" size="sm" />
+        </button>
+        <div class="relative" ref="columnMenuRef">
+          <button
+            type="button"
+            class="basic-table-tool"
+            :class="{ 'basic-table-tool-active': columnMenuOpen }"
+            title="Column settings"
+            aria-label="Column settings"
+            @click="columnMenuOpen = !columnMenuOpen"
+          >
+            <Icon name="grid" size="sm" />
+          </button>
+          <div v-if="columnMenuOpen" class="basic-table-column-menu">
+            <label
+              v-for="column in columns"
+              :key="column.key"
+              class="basic-table-column-option"
+            >
+              <input
+                type="checkbox"
+                :checked="isColumnVisible(column.key)"
+                :disabled="visibleColumnKeys.length <= 1 && isColumnVisible(column.key)"
+                @change="toggleColumn(column.key)"
+              />
+              <span>{{ column.label }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      ref="tableWrapperRef"
+      class="table-wrapper"
+      :class="{
+        'actions-expanded': actionsExpanded,
+        'is-scrollable': isScrollable,
+        'table-compact': density === 'compact'
+      }"
+    >
     <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
       <thead class="table-header bg-gray-50 dark:bg-dark-800">
         <tr>
           <th
-            v-for="(column, index) in columns"
+            v-for="(column, index) in visibleColumns"
             :key="column.key"
             scope="col"
             :class="[
@@ -121,7 +168,7 @@
       <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
-          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
+          <td v-for="column in visibleColumns" :key="column.key" :class="['whitespace-nowrap', rowPaddingClass, getAdaptivePaddingClass()]">
             <div class="animate-pulse">
               <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
             </div>
@@ -131,7 +178,7 @@
         <!-- Empty state -->
         <tr v-else-if="!data || data.length === 0">
           <td
-            :colspan="columns.length"
+            :colspan="visibleColumns.length"
             :class="['py-12 text-center text-gray-500 dark:text-dark-400', getAdaptivePaddingClass()]"
           >
             <slot name="empty">
@@ -152,7 +199,7 @@
         <!-- Data rows (virtual scroll) -->
         <template v-else>
           <tr v-if="virtualPaddingTop > 0" aria-hidden="true">
-            <td :colspan="columns.length"
+            <td :colspan="visibleColumns.length"
                 :style="{ height: virtualPaddingTop + 'px', padding: 0, border: 'none' }">
             </td>
           </tr>
@@ -165,10 +212,11 @@
             class="hover:bg-gray-50 dark:hover:bg-dark-800"
           >
             <td
-              v-for="(column, colIndex) in columns"
+              v-for="(column, colIndex) in visibleColumns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                'whitespace-nowrap text-sm text-gray-900 dark:text-gray-100',
+                rowPaddingClass,
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
@@ -185,18 +233,19 @@
             </td>
           </tr>
           <tr v-if="virtualPaddingBottom > 0" aria-hidden="true">
-            <td :colspan="columns.length"
+            <td :colspan="visibleColumns.length"
                 :style="{ height: virtualPaddingBottom + 'px', padding: 0, border: 'none' }">
             </td>
           </tr>
         </template>
       </tbody>
     </table>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useVirtualizer, observeElementRect as observeElementRectDefault } from '@tanstack/vue-virtual'
 import { useI18n } from 'vue-i18n'
 import type { Column } from './types'
@@ -215,8 +264,12 @@ const emit = defineEmits<{
 
 // 表格容器引用
 const tableWrapperRef = ref<HTMLElement | null>(null)
+const columnMenuRef = ref<HTMLElement | null>(null)
 const isScrollable = ref(false)
 const actionsColumnNeedsExpanding = ref(false)
+const columnMenuOpen = ref(false)
+const visibleColumnKeys = ref<string[]>([])
+const density = ref<'default' | 'compact'>('default')
 
 // --- 虚拟滚动「整表空白」根治 ---
 // 根因:本组件根 .table-wrapper 为 flex:1 / min-h-0,高度由父级 flex 链决定。@tanstack 虚拟化器
@@ -297,6 +350,7 @@ let resizeObserver: ResizeObserver | null = null
 let resizeHandler: (() => void) | null = null
 let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
+let clickOutsideHandler: ((event: MouseEvent) => void) | null = null
 
 const detachDesktopTableTracking = () => {
   resizeObserver?.disconnect()
@@ -327,6 +381,7 @@ const attachDesktopTableTracking = () => {
 }
 
 onMounted(() => {
+  syncVisibleColumns()
   if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
@@ -338,11 +393,21 @@ onMounted(() => {
     } else {
       desktopViewportMediaQuery.addListener(desktopViewportListener)
     }
+    clickOutsideHandler = (event: MouseEvent) => {
+      if (columnMenuRef.value && !columnMenuRef.value.contains(event.target as Node)) {
+        columnMenuOpen.value = false
+      }
+    }
+    document.addEventListener('click', clickOutsideHandler)
   }
 })
 
 onUnmounted(() => {
   detachDesktopTableTracking()
+  if (clickOutsideHandler) {
+    document.removeEventListener('click', clickOutsideHandler)
+    clickOutsideHandler = null
+  }
   if (desktopViewportMediaQuery && desktopViewportListener) {
     if (typeof desktopViewportMediaQuery.removeEventListener === 'function') {
       desktopViewportMediaQuery.removeEventListener('change', desktopViewportListener)
@@ -524,9 +589,39 @@ const resolveRowKey = (row: any, index: number) => {
 }
 
 const dataColumns = computed(() => props.columns.filter((column) => column.key !== 'actions'))
+const visibleColumns = computed(() => {
+  if (visibleColumnKeys.value.length === 0) return props.columns
+  return props.columns.filter((column) => visibleColumnKeys.value.includes(column.key))
+})
 const columnsSignature = computed(() =>
   props.columns.map((column) => `${column.key}:${column.sortable ? '1' : '0'}`).join('|')
 )
+const rowPaddingClass = computed(() => (density.value === 'compact' ? 'py-2.5' : 'py-4'))
+
+function syncVisibleColumns() {
+  const currentKeys = props.columns.map(column => column.key)
+  const keptKeys = visibleColumnKeys.value.filter(key => currentKeys.includes(key))
+  visibleColumnKeys.value = keptKeys.length > 0 ? keptKeys : currentKeys
+}
+
+function isColumnVisible(key: string) {
+  return visibleColumnKeys.value.includes(key)
+}
+
+function toggleColumn(key: string) {
+  if (isColumnVisible(key)) {
+    if (visibleColumnKeys.value.length <= 1) return
+    visibleColumnKeys.value = visibleColumnKeys.value.filter(item => item !== key)
+  } else {
+    const next = [...visibleColumnKeys.value, key]
+    const order = new Map(props.columns.map((column, index) => [column.key, index]))
+    visibleColumnKeys.value = next.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+  }
+}
+
+function toggleDensity() {
+  density.value = density.value === 'default' ? 'compact' : 'default'
+}
 
 watch(
   isDesktopViewport,
@@ -631,7 +726,7 @@ const hasActionsColumn = computed(() => {
 })
 
 const hasSelectColumn = computed(() => {
-  return props.columns.length > 0 && props.columns[0].key === 'select'
+  return visibleColumns.value.length > 0 && visibleColumns.value[0].key === 'select'
 })
 
 // 生成固定列的 CSS 类
@@ -690,6 +785,7 @@ onMounted(() => {
 watch(
   columnsSignature,
   () => {
+    syncVisibleColumns()
     // If current sort key is no longer sortable/visible, fall back to default/persisted.
     const normalized = normalizeSortKey(sortKey.value)
     if (!sortKey.value) {
@@ -732,6 +828,50 @@ defineExpose({
 </script>
 
 <style scoped>
+.basic-table {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+
+.basic-table-toolbar {
+  @apply flex min-h-11 flex-shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 dark:border-dark-700 dark:bg-dark-900;
+}
+
+.basic-table-meta {
+  @apply flex min-w-0 items-center gap-2;
+}
+
+.basic-table-title {
+  @apply text-sm font-semibold text-gray-900 dark:text-white;
+}
+
+.basic-table-count {
+  @apply rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-300;
+}
+
+.basic-table-tools {
+  @apply flex flex-shrink-0 items-center gap-1;
+}
+
+.basic-table-tool {
+  @apply flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-300 dark:hover:bg-dark-800 dark:hover:text-white;
+}
+
+.basic-table-tool-active {
+  @apply bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300;
+}
+
+.basic-table-column-menu {
+  @apply absolute right-0 top-9 z-50 max-h-80 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-dark-700 dark:bg-dark-900;
+}
+
+.basic-table-column-option {
+  @apply flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-800;
+}
+
+.basic-table-column-option input {
+  @apply h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800;
+}
+
 /* 表格横向滚动 */
 .table-wrapper {
   --select-col-width: 52px; /* 勾选列宽度：px-6 (24px*2) + checkbox (16px) */
@@ -741,6 +881,10 @@ defineExpose({
   flex: 1;
   min-height: 0;
   isolation: isolate;
+}
+
+.table-compact .sticky-header-cell {
+  @apply py-2.5;
 }
 
 /* 表头容器，确保在滚动时覆盖表体内容 */

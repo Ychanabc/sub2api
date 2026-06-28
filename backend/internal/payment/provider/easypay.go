@@ -42,7 +42,8 @@ type EasyPay struct {
 // NewEasyPay creates a new EasyPay provider.
 // config keys: pid, pkey, apiBase, notifyUrl, returnUrl, cid, cidAlipay, cidWxpay
 func NewEasyPay(instanceID string, config map[string]string) (*EasyPay, error) {
-	for _, k := range []string{"pid", "pkey", "apiBase", "notifyUrl", "returnUrl"} {
+	required := []string{"pid", "pkey", "apiBase", "notifyUrl", "returnUrl"}
+	for _, k := range required {
 		if strings.TrimSpace(config[k]) == "" {
 			return nil, fmt.Errorf("easypay config missing required key: %s", k)
 		}
@@ -500,4 +501,13 @@ func easyPaySign(params map[string]string, pkey string) string {
 
 func easyPayVerifySign(params map[string]string, pkey string, sign string) bool {
 	return hmac.Equal([]byte(easyPaySign(params, pkey)), []byte(sign))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }

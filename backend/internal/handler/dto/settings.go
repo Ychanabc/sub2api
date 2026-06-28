@@ -27,19 +27,22 @@ type CustomEndpoint struct {
 
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
-	RegistrationEnabled              bool                     `json:"registration_enabled"`
-	EmailVerifyEnabled               bool                     `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist []string                 `json:"registration_email_suffix_whitelist"`
-	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
-	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
-	FrontendURL                      string                   `json:"frontend_url"`
-	InvitationCodeEnabled            bool                     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
-	TotpEncryptionKeyConfigured      bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
-	LoginAgreementEnabled            bool                     `json:"login_agreement_enabled"`
-	LoginAgreementMode               string                   `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt          string                   `json:"login_agreement_updated_at"`
-	LoginAgreementDocuments          []LoginAgreementDocument `json:"login_agreement_documents"`
+	RegistrationEnabled                          bool                     `json:"registration_enabled"`
+	EmailVerifyEnabled                           bool                     `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist             []string                 `json:"registration_email_suffix_whitelist"`
+	PromoCodeEnabled                             bool                     `json:"promo_code_enabled"`
+	PasswordResetEnabled                         bool                     `json:"password_reset_enabled"`
+	FrontendURL                                  string                   `json:"frontend_url"`
+	InvitationCodeEnabled                        bool                     `json:"invitation_code_enabled"`
+	TotpEnabled                                  bool                     `json:"totp_enabled"`
+	TotpEncryptionKeyConfigured                  bool                     `json:"totp_encryption_key_configured"`
+	LoginAgreementEnabled                        bool                     `json:"login_agreement_enabled"`
+	ConversationAuditSecondaryPasswordConfigured bool                     `json:"conversation_audit_secondary_password_configured"`
+	ConversationAuditCleanupEnabled              bool                     `json:"conversation_audit_cleanup_enabled"`
+	ConversationAuditRetentionDays               int                      `json:"conversation_audit_retention_days"`
+	LoginAgreementMode                           string                   `json:"login_agreement_mode"`
+	LoginAgreementUpdatedAt                      string                   `json:"login_agreement_updated_at"`
+	LoginAgreementDocuments                      []LoginAgreementDocument `json:"login_agreement_documents"`
 
 	SMTPHost               string `json:"smtp_host"`
 	SMTPPort               int    `json:"smtp_port"`
@@ -171,21 +174,23 @@ type SystemSettings struct {
 	MinClaudeCodeVersion string `json:"min_claude_code_version"`
 	MaxClaudeCodeVersion string `json:"max_claude_code_version"`
 
-	// 分组隔离
 	AllowUngroupedKeyScheduling bool `json:"allow_ungrouped_key_scheduling"`
 
 	// Backend Mode
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification       bool   `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough          bool   `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                   bool   `json:"enable_cch_signing"`
-	EnableAnthropicCacheTTL1hInjection bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
-	RewriteMessageCacheControl         bool   `json:"rewrite_message_cache_control"`
-	AntigravityUserAgentVersion        string `json:"antigravity_user_agent_version"`
-	OpenAICodexUserAgent               string `json:"openai_codex_user_agent"`
-	OpenAIAllowClaudeCodeCodexPlugin   bool   `json:"openai_allow_claude_code_codex_plugin"`
+	EnableFingerprintUnification           bool   `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough              bool   `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                       bool   `json:"enable_cch_signing"`
+	EnableClaudeOAuthSystemPromptInjection bool   `json:"enable_claude_oauth_system_prompt_injection"`
+	ClaudeOAuthSystemPrompt                string `json:"claude_oauth_system_prompt"`
+	ClaudeOAuthSystemPromptBlocks          string `json:"claude_oauth_system_prompt_blocks"`
+	EnableAnthropicCacheTTL1hInjection     bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
+	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
+	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
+	OpenAIAllowClaudeCodeCodexPlugin       bool   `json:"openai_allow_claude_code_codex_plugin"`
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
@@ -226,7 +231,7 @@ type SystemSettings struct {
 	// Force Alipay mobile clients to use QR code payment instead of mobile redirect
 	PaymentAlipayForceQRCode bool `json:"payment_alipay_force_qrcode"`
 
-	// 余额、订阅到期与账号限额通知
+	// 濠电偠鎻徊楣冩偡閳哄悽鐑藉磼閻愬弬銉ッ归敐鍥╂憘闁告艾鍊垮濠氬礃閵婏箑娅ｉ梺绯曟櫅閻倸顕ｉ悽鍛婂亜闁告挷鑳堕幉鍧楁煟閻樺啿濮х紒鐘冲灱閵囨劙宕稿Δ浣叉寖闂侀€涘嵆閸嬪﹪寮跺ú顏呪拺妞ゆ劧绲鹃惃鎴︽煟?
 	BalanceLowNotifyEnabled         bool               `json:"balance_low_notify_enabled"`
 	BalanceLowNotifyThreshold       float64            `json:"balance_low_notify_threshold"`
 	BalanceLowNotifyRechargeURL     string             `json:"balance_low_notify_recharge_url"`
@@ -241,19 +246,20 @@ type SystemSettings struct {
 	// Available Channels feature switch (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
-	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 
-	// Affiliate (邀请返利) feature switch
+	// cyber 濠电偞娼欓崥瀣┍濞差亝鍎婇柣锝呭濞岊亪鐓崶銊ь暡闁哄鎽滈埀顒侇問閸犳帡宕戦幘缁樼厱?+ TTL
+	CyberSessionBlockEnabled    bool `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds int  `json:"cyber_session_block_ttl_seconds"`
+
+	// Affiliate (闂傚倷绶￠崢鎼佸磻閹剧粯鍋ｉ柛銉㈡櫆閻掕法绱掔紒妯虹伌鐎? feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 
 	// OpenAI fast/flex policy
 	OpenAIFastPolicySettings *OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`
 
-	// 系统全局默认平台配额（key = platform，nil/缺省 = 不限制）
 	DefaultPlatformQuotas map[string]*service.DefaultPlatformQuotaSetting `json:"default_platform_quotas,omitempty"`
 
-	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 }
 
@@ -270,7 +276,7 @@ type PublicSettings struct {
 	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
 	InvitationCodeEnabled            bool                     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool                     `json:"totp_enabled"` // TOTP 双因素认证
+	TotpEnabled                      bool                     `json:"totp_enabled"`
 	LoginAgreementEnabled            bool                     `json:"login_agreement_enabled"`
 	LoginAgreementMode               string                   `json:"login_agreement_mode"`
 	LoginAgreementUpdatedAt          string                   `json:"login_agreement_updated_at"`
@@ -329,19 +335,19 @@ type LoginAgreementDocument struct {
 	ContentMD string `json:"content_md"`
 }
 
-// OverloadCooldownSettings 529过载冷却配置 DTO
+// OverloadCooldownSettings 529闂佸搫顦弲娑樏洪埡浼卞綊宕堕鈧粈鍐偓鐟板濠㈡绮婇柆宥嗏拺闁哄娉曡倴闂?DTO
 type OverloadCooldownSettings struct {
 	Enabled         bool `json:"enabled"`
 	CooldownMinutes int  `json:"cooldown_minutes"`
 }
 
-// RateLimit429CooldownSettings 429默认回避配置 DTO
+// RateLimit429CooldownSettings 429濠殿喗甯楃粙鎺椻€﹂崼銉晣濠电姵鑹鹃悙濠囨煟閹邦垱銆冪紓鍌氼樀濮婃椽寮剁捄銊愩倝鏌?DTO
 type RateLimit429CooldownSettings struct {
 	Enabled         bool `json:"enabled"`
 	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
-// StreamTimeoutSettings 流超时处理配置 DTO
+// StreamTimeoutSettings 婵犵數鍋熺换婵喢归崶鈺冪煋闁圭虎鍠栫猾宥夋偣鏉炴媽顒熸俊鏌ヤ憾閺岋綁鎮欓崣澶樻＆闂佸憡菧閸婃妲?DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`
 	Action                 string `json:"action"`
@@ -350,7 +356,7 @@ type StreamTimeoutSettings struct {
 	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
 }
 
-// RectifierSettings 请求整流器配置 DTO
+// RectifierSettings 闂佽崵濮村ú顓㈠绩闁秵鍎戝ù鍏兼綑閺嬩線鎮楀☉娆樼劷闁靛牞绠撻弻娑㈡晲閸愩劌顫囬梺鍛娗滈崐妤冩?DTO
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`
 	ThinkingSignatureEnabled bool     `json:"thinking_signature_enabled"`
@@ -359,7 +365,7 @@ type RectifierSettings struct {
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
 }
 
-// BetaPolicyRule Beta 策略规则 DTO
+// BetaPolicyRule Beta 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟閭﹀枟閸犲棝鏌涢弴銊ヤ簻闁?DTO
 type BetaPolicyRule struct {
 	BetaToken            string   `json:"beta_token"`
 	Action               string   `json:"action"`
@@ -370,12 +376,12 @@ type BetaPolicyRule struct {
 	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"`
 }
 
-// BetaPolicySettings Beta 策略配置 DTO
+// BetaPolicySettings Beta 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟鎵閻撯偓閻庡箍鍎卞ú銊╁几?DTO
 type BetaPolicySettings struct {
 	Rules []BetaPolicyRule `json:"rules"`
 }
 
-// OpenAIFastPolicyRule OpenAI fast/flex 策略规则 DTO
+// OpenAIFastPolicyRule OpenAI fast/flex 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟閭﹀枟閸犲棝鏌涢弴銊ヤ簻闁?DTO
 type OpenAIFastPolicyRule struct {
 	ServiceTier          string   `json:"service_tier"`
 	Action               string   `json:"action"`
@@ -386,12 +392,12 @@ type OpenAIFastPolicyRule struct {
 	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"`
 }
 
-// OpenAIFastPolicySettings OpenAI fast 策略配置 DTO
+// OpenAIFastPolicySettings OpenAI fast 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟鎵閻撯偓閻庡箍鍎卞ú銊╁几?DTO
 type OpenAIFastPolicySettings struct {
 	Rules []OpenAIFastPolicyRule `json:"rules"`
 }
 
-// EmailTemplateEventOption 描述可编辑的通知邮件事件。
+// EmailTemplateEventOption describes an email template event option.
 type EmailTemplateEventOption struct {
 	Value       string `json:"value"`
 	Label       string `json:"label,omitempty"`
